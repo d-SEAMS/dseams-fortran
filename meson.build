@@ -1,13 +1,26 @@
-# Fortran 2008 module. fpm.toml in this directory is the other build.
+# Copyright (c) d-SEAMS developers
+# SPDX-License-Identifier: MIT
+#
+# Meson build of the Fortran modules, for projects that pull this
+# repository in as a subproject. fpm.toml is the other build. Both link
+# an installed libseams from seams-core, found through pkg-config
+# (seams.pc) or, failing that, on the linker search path.
+project(
+  'dseams-fortran',
+  'fortran',
+  version: '2.14.0',
+  license: 'MIT',
+  meson_version: '>=1.1.0',
+  default_options: ['warning_level=1'],
+)
 
-fortran_opt = get_option('with_fortran')
-if fortran_opt.disabled()
-  subdir_done()
-endif
-
-fc_added = add_languages('fortran', required: fortran_opt, native: false)
-if not fc_added
-  subdir_done()
+# The Fortran sources only link libseams; the C compile flags in seams.pc
+# (include paths, feature defines) are dropped.
+seams_dep = dependency('seams', version: '>=2.14.0', required: false)
+if seams_dep.found()
+  seams_dep = seams_dep.partial_dependency(links: true, link_args: true)
+else
+  seams_dep = meson.get_compiler('fortran').find_library('seams')
 endif
 
 fortran_lib_src = files(
@@ -18,56 +31,89 @@ fortran_lib_src = files(
   'src/seams_methods.f90',
 )
 
-# The executables link through the C++ compiler because of libseams.
-# Clang links a PIE by default where GCC may not, so the Fortran objects
-# are built position-independent to match whichever links them.
-if get_option('with_tests')
+dseams_lib = static_library(
+  'dseams_fortran',
+  fortran_lib_src,
+  dependencies: seams_dep,
+  pic: true,
+)
+dseams_fortran_dep = declare_dependency(
+  link_with: dseams_lib,
+  include_directories: dseams_lib.private_dir_include(),
+  dependencies: seams_dep,
+)
+meson.override_dependency('dseams-fortran', dseams_fortran_dep)
+
+if not meson.is_subproject()
+  root = meson.project_source_root()
   fortran_env = environment()
   fortran_env.set('OMP_NUM_THREADS', '1')
+  fortran_env.set('DSEAMS_ROOT', root)
+
   capi = executable(
     'test_fortran_capi',
-    files('test_seams.f90', 'src/seams_c.f90'),
-    link_with: seams_api_lib,
-    pie: true,
+    files('test/test_capi.f90', 'src/seams_c.f90'),
+    dependencies: seams_dep,
   )
-  test(
-    'fortran_capi',
-    capi,
-    args: [meson.project_source_root()],
-    env: fortran_env,
-    timeout: 180,
+  test('fortran_capi', capi, args: [root], env: fortran_env, timeout: 180)
+
+  check = executable(
+    'test_fortran_check',
+    files('test/check_dseams.f90'),
+    dependencies: dseams_fortran_dep,
   )
+  test('fortran_check', check, env: fortran_env, timeout: 180)
+
   high = executable(
     'test_fortran_high',
-    files('test/test_high.f90') + fortran_lib_src,
-    link_with: seams_api_lib,
-    pie: true,
+    files('test/test_high.f90'),
+    dependencies: dseams_fortran_dep,
   )
-  test(
-    'fortran_high',
-    high,
-    args: [meson.project_source_root()],
-    env: fortran_env,
-    timeout: 180,
+  test('fortran_high', high, args: [root], env: fortran_env, timeout: 180)
+
+  # seams.f90 includes every module source: the single-file build, one
+  # plain compiler call as a user without fpm or meson would make it.
+  # Meson's module scanner does not follow include lines, so the call is a
+  # custom target whose module files order the test program after it.
+  fc = meson.get_compiler('fortran')
+  one_file_obj = custom_target(
+    'seams_one_file',
+    input: files('seams.f90'),
+    output: [
+      'seams_one_file.o',
+      'seams_kinds.mod',
+      'seams_c.mod',
+      'seams_support.mod',
+      'seams.mod',
+      'seams@seams_methods.smod',
+    ],
+    command: fc.cmd_array() + ['-fPIC', '-J@OUTDIR@', '-c', '@INPUT@', '-o', '@OUTPUT0@'],
   )
   one_file = executable(
     'test_fortran_one_file',
-    files('seams.f90', 'test/test_high.f90'),
-    link_with: seams_api_lib,
-    pie: true,
+    files('test/test_high.f90'),
+    one_file_obj,
+    dependencies: seams_dep,
+  )
+  test('fortran_one_file', one_file, args: [root], env: fortran_env, timeout: 180)
+
+  cubic = executable(
+    'fortran_cubic',
+    files('example/cubic.f90'),
+    dependencies: dseams_fortran_dep,
+  )
+  test('fortran_cubic', cubic, env: fortran_env, timeout: 180)
+
+  minimal = executable(
+    'fortran_minimal',
+    files('example/minimal.f90'),
+    dependencies: dseams_fortran_dep,
   )
   test(
-    'fortran_one_file',
-    one_file,
-    args: [meson.project_source_root()],
+    'fortran_minimal',
+    minimal,
+    args: [root / 'input/traj/genice_sI.lammpstrj'],
     env: fortran_env,
     timeout: 180,
   )
-  cubic = executable(
-    'fortran_cubic',
-    files('example/cubic.f90') + fortran_lib_src,
-    link_with: seams_api_lib,
-    pie: true,
-  )
-  test('fortran_cubic', cubic, env: fortran_env, timeout: 180)
 endif
