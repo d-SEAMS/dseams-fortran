@@ -1,8 +1,8 @@
 ! Copyright (c) d-SEAMS developers
 ! SPDX-License-Identifier: MIT
-! fpm test: cubic ice built in memory, then ice Ih from the repository
-! when input/ is reachable (DSEAMS_ROOT, the repository root, or two
-! levels up from bindings/fortran).
+! fpm test: cubic ice built in memory, then ice Ih from input/ under
+! DSEAMS_ROOT or the working directory (fpm runs tests from the
+! manifest directory).
 program check_dseams
   use, intrinsic :: iso_c_binding
   use seams_c
@@ -92,9 +92,6 @@ contains
       if (there) return
     end if
     path = rel
-    inquire (file=path, exist=there)
-    if (there) return
-    path = '../../' // rel
     inquire (file=path, exist=there)
     if (there) return
     path = ''

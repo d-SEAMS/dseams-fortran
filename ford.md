@@ -1,7 +1,7 @@
 ---
 project: d-SEAMS
 summary: Fortran bindings for the d-SEAMS C API
-project_github: https://github.com/d-SEAMS/seams-core
+project_github: https://github.com/d-SEAMS/dseams-fortran
 project_website: https://docs.dseams.info/
 author: Rohit Goswami
 author_description: d-SEAMS developers
@@ -10,9 +10,8 @@ version: 2.14.0
 src_dir: ./src
 exclude_dir: ./example
              ./test
-exclude: test_seams.f90
-         seams_support.f90
-output_dir: ../../docs/ford
+exclude: seams_support.f90
+output_dir: ./build/ford
 preprocess: false
 display: public
          protected

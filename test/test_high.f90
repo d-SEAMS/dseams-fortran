@@ -26,8 +26,9 @@ program test_high
   integer(seams_int), allocatable :: perfect(:), imperfect(:), sheet(:), fp_counts(:)
   character(len=512) :: root
   integer :: nroot
-  ! fpm test passes no argument and runs from the manifest directory.
-  character(len=5), parameter :: roots(3) = [character(len=5) :: ".", "..", "../.."]
+  ! fpm test passes no argument and runs from the manifest directory,
+  ! where input/ holds the fixtures. Meson passes the source root.
+  character(len=1), parameter :: roots(1) = ["."]
   logical :: found
   integer :: up
   character(len=:), allocatable :: version, key, key_colored, key_alias, err

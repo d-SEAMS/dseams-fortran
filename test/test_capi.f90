@@ -15,8 +15,9 @@ program test_seams
   integer :: ii, jj, kk, f, s, cursor
   character(len=512) :: root
   integer :: nroot
-  ! fpm test passes no argument and runs from the manifest directory.
-  character(len=5), parameter :: roots(3) = [character(len=5) :: ".", "..", "../.."]
+  ! fpm test passes no argument and runs from the manifest directory,
+  ! where input/ holds the fixtures. Meson passes the source root.
+  character(len=1), parameter :: roots(1) = ["."]
   logical :: found
   integer :: up
   integer(c_int) :: n_bonds, n_hex, n_cubic, n_water, n_both

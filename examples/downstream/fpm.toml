@@ -10,5 +10,5 @@ auto-examples = false
 [dependencies]
 dseams = { path = "../.." }
 # From git or the registry instead:
-# dseams = { git = "https://github.com/d-SEAMS/seams-core", tag = "v2.14.0" }
+# dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0" }
 # dseams = "2.14.0"
