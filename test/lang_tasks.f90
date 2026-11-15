@@ -1,7 +1,9 @@
 ! Copyright (c) d-SEAMS developers
 ! Neighbours, rings, and CHILL+ from Fortran.
 ! Every call is a status code. The frame pointer is released on the
-! way out, including the error paths.
+! way out, including the error paths. Links libseams_lang, the C ABI
+! for the language fronts that seams-core installs beside libseams.
+! The printed line must match the one every language front prints.
 program lang_tasks
   use, intrinsic :: iso_c_binding
   implicit none
@@ -81,12 +83,12 @@ program lang_tasks
   integer(c_int), allocatable :: labels(:)
   integer :: i
   character(len=256) :: root
+  character(len=*), parameter :: canon = &
+    "pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0 0 0 0"
 
+  ! fpm test runs from the manifest directory, where input/ is.
   call get_environment_variable("DSEAMS_ROOT", root)
-  if (len_trim(root) == 0) then
-    write(0, '(A)') "DSEAMS_ROOT is unset"
-    stop 1
-  end if
+  if (len_trim(root) == 0) root = "."
   path = trim(root) // "/input/traj/ice1h.lammpstrj" // c_null_char
   graph = [character(kind=c_char) :: "c", "u", "t", "o", "f", "f", c_null_char]
   frame = seams_frame_read(path, 1, -1)
@@ -109,6 +111,10 @@ program lang_tasks
     "pairs", pairs, "rings", (rings(i), i = 1, 7), "chill", (counts(i), i = 1, 9)
   write(*, '(A)') trim(line)
   call seams_frame_free(frame)
+  if (trim(line) /= canon) then
+    write(0, '(A)') "expected " // canon
+    stop 1
+  end if
 
 contains
 

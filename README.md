@@ -71,8 +71,11 @@ fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 `fpm test` runs `check_dseams` (the C interface on a cubic cell and ice
 Ih, prints `dseams fortran ok`), `capi` (every `bind(C)` procedure,
 prints `fortran ok`) and `high` (the derived-type API, prints
-`fortran high ok`). The tests read the trajectories under `input/`,
-copied from seams-core.
+`fortran high ok`). `lang_tasks` binds `libseams_lang`, the
+language-front C ABI installed beside libseams, and prints
+`pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0 0 0 0` for ice Ih
+(`docs/lang/task-fortran.rst`). The tests read the trajectories under
+`input/`, copied from seams-core.
 
 ## Meson
 
@@ -81,9 +84,13 @@ repository as a subproject, and runs the same programs plus the
 single-file build:
 
 ```bash
-meson setup build/meson   # finds libseams through seams.pc
+meson setup build/meson   # finds libseams and libseams_lang through pkg-config
 meson test -C build/meson
 ```
+
+When pkg-config cannot resolve them (for example `seams-core.pc` names
+an `eigen3.pc` that is not on the path), name the directories instead:
+`meson setup build/meson -Dseams_libdir="$PREFIX/lib"`.
 
 A parent project calls `subproject('dseams-fortran')` and then
 `dependency('dseams-fortran')`.

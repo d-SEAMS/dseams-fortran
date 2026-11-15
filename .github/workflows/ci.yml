@@ -69,7 +69,7 @@ jobs:
         run: fpm run
       - name: Meson
         run: |
-          meson setup build/meson
+          meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
           meson test -C build/meson --print-errorlogs
       # fpm publish archives fpm_model.json before writing it (fpm 0.12,
       # 0.13), so dump the model first. --show-upload-data does not upload.

@@ -38,6 +38,13 @@ name = "high"
 source-dir = "test"
 main = "test_high.f90"
 
+# The language-front task program. It binds libseams_lang directly.
+[[test]]
+name = "lang_tasks"
+source-dir = "test"
+main = "lang_tasks.f90"
+link = ["seams_lang"]
+
 [[example]]
 name = "cubic"
 source-dir = "example"

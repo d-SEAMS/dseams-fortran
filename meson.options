@@ -1,0 +1,2 @@
+option('seams_libdir', type: 'array', value: [],
+  description: 'Absolute directories holding libseams and libseams_lang, searched when pkg-config does not find them')
