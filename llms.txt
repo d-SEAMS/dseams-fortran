@@ -1,0 +1,31 @@
+# dseams-fortran
+
+> dseams-fortran is the fpm package `dseams`, the Fortran interface to d-SEAMS: the `seams_c` module binds the libseams C API through `iso_c_binding`, and the `seams` module wraps it in derived types for CHILL and CHILL+ ice labels, Steinhardt order parameters, primitive rings, cages, RDFs, hydrogen bonds and topological fingerprints of molecular simulation frames.
+
+Kinds are `seams_real` (`real64`) and `seams_int` (`int32`); coordinates have shape `(3, n)`. The package links an installed libseams and does not build one: fpm takes the library directory from `FPM_LDFLAGS`, meson from the `seams` pkg-config module or `-Dseams_libdir`. A project depends on it with `dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0" }`. The package version is the seams-core release it binds. Contributor instructions are in the contributing guide at the repository root.
+
+## Repository docs
+
+- [README](https://github.com/d-SEAMS/dseams-fortran/blob/main/README.md): Install libseams, link flags for fpm, tests, the meson subproject, the one-file build, development against seams-core and the release order.
+- [API page](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/api/fortran.md): Kinds, handles, errors, every call with its recorded output, and the symbol reference.
+- [Tutorial](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/tutorials/fortran.md): Compile the modules with gfortran and run the C-interface program on a cubic ice cell.
+- [Language task](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/lang/task-fortran.rst): The ice Ih census every d-SEAMS language front prints, in Fortran against `libseams_lang`.
+- [FORD settings](https://github.com/d-SEAMS/dseams-fortran/blob/main/ford.md): Source for the generated Fortran module reference.
+- [Cubic ice example](https://github.com/d-SEAMS/dseams-fortran/blob/main/example/cubic.f90): Every analysis on a 64-atom cubic cell through the `seams` module.
+- [Downstream project](https://github.com/d-SEAMS/dseams-fortran/tree/main/examples/downstream): A separate fpm project that depends on `dseams`.
+- [fpm registry stanza](https://github.com/d-SEAMS/dseams-fortran/blob/main/packaging/fpm/registry.toml): The fortran-lang fpm registry entry for each release.
+- [CHANGELOG](https://github.com/d-SEAMS/dseams-fortran/blob/main/CHANGELOG.md): Released changes; unreleased fragments are in `changelog.d/`.
+
+## Engine
+
+- [d-SEAMS/seams-core](https://github.com/d-SEAMS/seams-core): The C++ engine, the libseams C API, the language-front ABI and the CLI.
+- [seams.h](https://github.com/d-SEAMS/seams-core/blob/main/include/seams.h): The C API header `seams_c` mirrors.
+- [docs.dseams.info](https://docs.dseams.info): d-SEAMS documentation: analyses, C API reference and every language front.
+
+## Other language bindings
+
+- [PydSEAMSlib](https://github.com/d-SEAMS/PydSEAMSlib): Python.
+- [Dseams.jl](https://github.com/d-SEAMS/Dseams.jl): Julia.
+- [dseams-r](https://github.com/d-SEAMS/dseams-r): R.
+- [dseams-rs](https://github.com/d-SEAMS/dseams-rs): Rust.
+- [yodaStruct](https://github.com/d-SEAMS/yodaStruct): Lua and Fennel.
