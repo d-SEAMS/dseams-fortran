@@ -1,0 +1,142 @@
+# Contributing to dseams-fortran
+
+This file is the working contract for anyone changing this repository. The
+README is for users of the `dseams` fpm package; this file is for people
+editing it.
+
+## What lives here and what does not
+
+This repository holds the Fortran modules on top of the d-SEAMS C API. The
+engine, the C API (`libseams`, header `include/seams.h`) and the
+language-front ABI (`libseams_lang`) live in
+[d-SEAMS/seams-core](https://github.com/d-SEAMS/seams-core).
+
+- A new analysis, a changed result, a C API function or enumerator, a reader
+  for a new file format, or a bug inside libseams: change seams-core first.
+  Bind it here once a seams-core commit carries it, and move the pin.
+- An `iso_c_binding` interface, a derived-type method, a Fortran error
+  message, the fpm or meson build, docs or examples: change it here.
+- Do not copy engine sources into this tree. The package links an installed
+  libseams and never builds one.
+
+## Layout
+
+| Path | Contents |
+|---|---|
+| `fpm.toml` | The `dseams` package: library, tests, examples. fpm reads it from the repository root for git and registry dependencies |
+| `src/seams_kinds.f90` | `seams_real`, `seams_int`, checked against the C kinds |
+| `src/seams_c.f90` | `seams_c`, the `bind(C)` image of `seams.h` |
+| `src/seams_support.f90` | Reference-counted handle box; not public API |
+| `src/seams.f90`, `src/seams_methods.f90` | `seams`, the derived-type API, and its submodule |
+| `seams.f90` | Includes every `src/` file in order, for a one-file build. fpm and meson must not compile it with `src/` |
+| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90` |
+| `example/` | `cubic.f90` and `minimal.f90`, run as fpm examples and meson tests |
+| `examples/downstream/` | A separate fpm project with a path dependency on this one |
+| `input/` | Trajectories the tests read, copied from seams-core |
+| `meson.build`, `meson.options` | Standalone meson project, exported as `dependency('dseams-fortran')` for subprojects |
+| `docs/` | API page, tutorial and language-task page, included by the d-SEAMS docs |
+| `ford.md` | FORD settings; output goes to `build/ford` |
+| `packaging/fpm/registry.toml` | Stanza for the fortran-lang fpm registry |
+| `changelog.d/` | Unreleased changelog fragments |
+| `.github/workflows/ci.yml` | Builds seams-core at the pin and runs every check below |
+
+## How the build finds libseams
+
+Neither build compiles C or C++. Both link `-lseams`, and the `lang_tasks`
+test also links `-lseams_lang`.
+
+- fpm: `FPM_LDFLAGS` carries the search path and the rpath. With an
+  installed prefix,
+  `FPM_LDFLAGS="-L$PREFIX/lib -Wl,-rpath,$PREFIX/lib"`, or the pkg-config
+  form in the README. A meson install of seams-core leaves the libraries
+  libseams loads without a RUNPATH, so set `LD_LIBRARY_PATH=$PREFIX/lib`
+  as well.
+- meson: the pkg-config modules `seams` and `seams-lang` (link flags only;
+  their C compile flags are dropped). When pkg-config cannot resolve them,
+  `-Dseams_libdir=dir1,dir2` names the directories to search.
+
+The seams-core commit CI builds is `SEAMS_CORE_REPOSITORY` and
+`SEAMS_CORE_REF` at the top of `.github/workflows/ci.yml`.
+
+## Build and test
+
+Build seams-core at the pinned commit in a sibling checkout. Its build tree
+holds `libseams.so` in `bbdir/src` and `libseams_lang.so` in
+`bbdir/bindings`:
+
+```bash
+git -C ../seams-core checkout "$SEAMS_CORE_REF"
+(cd ../seams-core && pixi run meson setup bbdir -Dwith_python=false -Dwith_fortran=disabled \
+  && pixi run ninja -C bbdir)
+
+SC=$PWD/../seams-core/bbdir
+export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/bindings"
+export LD_LIBRARY_PATH=$SC/src:$SC/bindings
+export OMP_NUM_THREADS=1
+```
+
+Then, from the repository root:
+
+```bash
+fpm build
+fpm test
+fpm run --example cubic
+fpm run --example minimal -- input/traj/genice_sI.lammpstrj
+(cd examples/downstream && fpm run)
+
+PKG_CONFIG_PATH=$SC/meson-uninstalled \
+  meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
+meson test -C build/meson --print-errorlogs
+
+fpm build --dump fpm_model.json && fpm publish --show-upload-data
+```
+
+`fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok` and
+the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
+0 0 0`. Meson runs seven tests, including the one-file build of `seams.f90`.
+
+Every check must pass before a change is called done. Fix the code under
+test; do not skip, comment out, loosen or delete a test to get there. A test
+may change only when the behavior it pins changes on purpose, and the commit
+says so.
+
+## When seams.h changes
+
+1. Move `SEAMS_CORE_REF` in `.github/workflows/ci.yml` to the seams-core
+   commit or tag.
+2. Add the `bind(C)` interfaces to `src/seams_c.f90`, matching the header's
+   argument order, `value` attributes and kinds.
+3. Wrap them in `seams` (`src/seams.f90` for the interface,
+   `src/seams_methods.f90` for the body), with `stat` and `errmsg`.
+4. Call the new symbols from `test/test_capi.f90` and `test/test_high.f90`,
+   and document them in `docs/api/fortran.md`.
+5. A new module file goes in the `include` list of `seams.f90` and in
+   `fortran_lib_src` and the one-file custom target in `meson.build`.
+
+## Commits and changelog
+
+- [Conventional Commits](https://www.conventionalcommits.org/):
+  `feat`, `fix`, `docs`, `test`, `build`, `ci`, `refactor`, `style`, `chore`,
+  with a scope where it helps (`build(meson): ...`). One logical change per
+  commit; formatter-only changes go in their own `style:` commit.
+- ASCII punctuation in code, docs and commit messages. Comments say what the
+  code does and why, in the present tense; history belongs in the commit.
+- Every user-visible change adds a fragment to `changelog.d/`, named
+  `<issue>.<type>.md` or `+<slug>.<type>.md`, where `<type>` is `added`,
+  `changed`, `deprecated`, `removed`, `fixed` or `security`. See
+  `changelog.d/README.md`.
+
+## Releases
+
+The package version is the seams-core version it binds.
+
+1. seams-core tags the release (`vX.Y.Z` on d-SEAMS/seams-core).
+2. Here: set `SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core` and
+   `SEAMS_CORE_REF: vX.Y.Z` in `.github/workflows/ci.yml`, set `version` in
+   `fpm.toml` and `meson.build` to `X.Y.Z`, update the tag in
+   `packaging/fpm/registry.toml`, the README and `examples/downstream`, run
+   `towncrier build --version X.Y.Z`, and wait for CI on that commit.
+3. Tag `vX.Y.Z` here.
+4. Open the fortran-lang/fpm-registry pull request with the stanza from
+   `packaging/fpm/registry.toml`, or `fpm publish` once the registry
+   accepts uploads for the package.
