@@ -1,21 +1,21 @@
 # Fortran tutorial
 
-`bindings/fortran/src/seams.f90` is the Fortran module. `src/seams_c.f90` is the `iso_c_binding` image of `seams.h`. `test_seams.f90` calls that image. `test/test_high.f90` calls the derived-type API.
+`src/seams.f90` is the Fortran module. `src/seams_c.f90` is the `iso_c_binding` image of `seams.h`. `test/test_capi.f90` calls that image. `test/test_high.f90` calls the derived-type API.
 
 ```bash
 mkdir -p build/fmod
-gfortran -Jbuild/fmod -c bindings/fortran/src/seams_kinds.f90 -o build/fmod/seams_kinds.o
-gfortran -Jbuild/fmod -Ibuild/fmod -c bindings/fortran/src/seams_c.f90 -o build/fmod/seams_c.o
-gfortran -Jbuild/fmod -Ibuild/fmod -c bindings/fortran/src/seams_support.f90 -o build/fmod/seams_support.o
-gfortran -Jbuild/fmod -Ibuild/fmod -c bindings/fortran/src/seams.f90 -o build/fmod/seams.o
-gfortran -Jbuild/fmod -Ibuild/fmod -c bindings/fortran/src/seams_methods.f90 -o build/fmod/seams_methods.o
-gfortran -Ibuild/fmod bindings/fortran/test_seams.f90 build/fmod/seams_c.o \
-  -o build/test_seams -Lbuild/src -lseams -Wl,-rpath,build/src
+gfortran -Jbuild/fmod -c src/seams_kinds.f90 -o build/fmod/seams_kinds.o
+gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_c.f90 -o build/fmod/seams_c.o
+gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_support.f90 -o build/fmod/seams_support.o
+gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams.f90 -o build/fmod/seams.o
+gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_methods.f90 -o build/fmod/seams_methods.o
+gfortran -Ibuild/fmod test/test_capi.f90 build/fmod/seams_c.o \
+  -o build/test_seams -L"$SEAMS_LIB_DIR" -lseams -Wl,-rpath,"$SEAMS_LIB_DIR"
 build/test_seams "$PWD"
 ```
 
 It prints `fortran ok` after the 64-atom cell is entirely cubic under both CHILL+ rules, q6 is above 0.3, and the six-ring fraction is above one half.
-`meson test docs_api_fortran` compiles that program and runs it with the repository root as its argument.
+`fpm test capi` and `meson test fortran_capi` run the same program from the repository root.
 The same program calls `seams_chill`, `seams_steinhardt`, `seams_cages`, `seams_signature_cages`, `seams_neighbours_knn`, `seams_rdf`, `seams_running_cn`, `seams_coordination`, `seams_hbonds`, `seams_density_axis`, `seams_fingerprint`, `seams_contact_pairs`, `seams_domains`, `seams_prisms`, `seams_monolayer`, `seams_rings_vertices`, `seams_site_table`, and `seams_system_read`.
 The lines it prints are:
 
@@ -35,20 +35,11 @@ fortran call read 128 46
 `cages` is the seeded census. `sig 0 0` is the `512` signature on this cubic cell.
 `read 128 46` is ice Ih and the sI guest frame.
 
-The program the script compiles:
+The part of the program that prints those lines:
 
-```{literalinclude} ../../../bindings/fortran/test_seams.f90
+```{literalinclude} ../../test/test_capi.f90
 :language: fortran
-:lines: 37-74
+:lines: 38-75
 ```
 
-
-## Structure still
-
-```{figure} ../tutorials/molecules/fortran/overlay-web.png
-:alt: Molecule still for this front
-:width: 480px
-
-Ice Ih colored by published CHILL+, drawn with chemparseplot. `python docs/scripts/render_molecules.py --slug fortran` writes the 2400 by 1800 PNG.
-```
 

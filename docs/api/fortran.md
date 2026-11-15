@@ -7,18 +7,17 @@ asserted equal to the C kinds at compile time. Coordinates are
 `real(seams_real)` with shape `(3, n)`, x/y/z down the first index,
 which is the same memory order as the C array.
 
-Build it with fpm from `bindings/fortran`, or with gfortran. Link
-`-lseams`. `FORD` reads `bindings/fortran/ford.md` and writes the
-native reference. The book links that HTML at `/fortran/index.html`.
+Build it with fpm from the repository root, or with gfortran. Link
+`-lseams`. `FORD` reads `ford.md` and writes the native reference to
+`build/ford`.
 The symbol list below is the same public surface.
 
 ```bash
-cd bindings/fortran
 fpm test --flag "-I$SEAMS_INC" --link-flag "-L$SEAMS_LIB_DIR -Wl,-rpath,$SEAMS_LIB_DIR"
 ford ford.md
 ```
 
-`test_seams.f90` calls `seams_c` and prints `fortran ok`.
+`test/test_capi.f90` calls `seams_c` and prints `fortran ok`.
 `test/test_high.f90` calls `seams` and prints `fortran high ok`.
 Both use the 64-atom cubic cell and the same trajectory counts.
 
@@ -88,7 +87,7 @@ end program errors
 
 ## Cubic ice
 
-`bindings/fortran/example/cubic.f90` is the 64-atom cell, one thread.
+`example/cubic.f90` (`fpm run --example cubic`) is the 64-atom cell, one thread.
 This is the output:
 
 ```text
@@ -127,10 +126,9 @@ not a clathrate.
 ## GenIce sI
 
 `seams_set_num_threads` and `seams_get_num_threads` are in the same module.
-`bindings/fortran/test_seams.f90` is the program the language-front script
-compiles. It calls every `bind(C)` procedure in the module on a 64-atom
-cubic cell. `meson test docs_api_fortran` compiles that program with
-gfortran and runs it. The run prints `fortran call cubic 64`,
+`test/test_capi.f90` is the C-interface test program. It calls every `bind(C)` procedure in the module on a 64-atom
+cubic cell. `fpm test capi` and `meson test fortran_capi` run
+it. The run prints `fortran call cubic 64`,
 `fortran call q6 0.628539361055`, `fortran call cages 0 64 0 0`,
 `fortran call sig 0 0`, `fortran call cn 4.063492063492`,
 `fortran call hbond 0`, `fortran call sheet 128`,
@@ -138,22 +136,20 @@ gfortran and runs it. The run prints `fortran call cubic 64`,
 
 The modules are also the fpm package `dseams`. It links an installed
 libseams, so tell fpm where that is before `fpm build` or `fpm test`
-(`bindings/fortran/test/check_dseams.f90`):
+(`test/check_dseams.f90`):
 
 ```bash
 export FPM_LDFLAGS="$(pkg-config --libs-only-L seams) -Wl,-rpath,$(pkg-config --variable=libdir seams)"
 ```
 
-fpm takes a git dependency's manifest from the repository root, which
-is why `fpm.toml` there points at `bindings/fortran`. A project depends
-on it with
+A project depends on it with
 
 ```toml
 [dependencies]
-dseams = { git = "https://github.com/d-SEAMS/seams-core", tag = "v2.14.0" }
+dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0" }
 ```
 
-`bindings/fortran/examples/downstream` is such a project, with a path
+`examples/downstream` is such a project, with a path
 dependency.
 
 `seams_c` exports `SEAMS_OK`, `SEAMS_CHILL_PUBLISHED`, `SEAMS_CHILL_OVITO`,
@@ -176,21 +172,22 @@ dependency.
 `read_frame`, `signature_count`, `site_kinds`, `pair_count`, and
 `domain_size` turn Fortran strings into the C buffers those calls take.
 
-`docs/examples/minimal_fortran.f90` reads
+`example/minimal.f90` (`fpm run --example minimal --
+input/traj/genice_sI.lammpstrj`) reads
 `input/traj/genice_sI.lammpstrj`. The program checks 46 atoms, at
 least 150 neighbour pairs, clathrate `counts(5) == 46`, 48 five-rings,
 54 six-rings, and a q6 mean above 0.5. It prints `fortran example ok`.
 
-```{literalinclude} ../../../docs/examples/minimal_fortran.f90
+```{literalinclude} ../../example/minimal.f90
 :language: fortran
 ```
 
-```{literalinclude} ../../../bindings/fortran/example/cubic.f90
+```{literalinclude} ../../example/cubic.f90
 :language: fortran
 :lines: 1-40
 ```
 
-```{literalinclude} ../../../bindings/fortran/src/seams_c.f90
+```{literalinclude} ../../src/seams_c.f90
 :language: fortran
 ```
 
@@ -212,7 +209,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_CAGE_CUBIC
 
@@ -228,7 +225,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_CAGE_HEX
 
@@ -244,7 +241,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_CAGE_WATER
 
@@ -260,7 +257,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_CHILL_OVITO
 
@@ -276,7 +273,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_CHILL_PUBLISHED
 
@@ -292,7 +289,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_ARG
 
@@ -308,7 +305,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_BOX
 
@@ -324,7 +321,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_INTERNAL
 
@@ -340,7 +337,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_NOMEM
 
@@ -356,7 +353,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_NULL
 
@@ -372,7 +369,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_RANGE
 
@@ -388,7 +385,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_ERR_STATE
 
@@ -404,7 +401,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_GRAPH_CUTOFF
 
@@ -420,7 +417,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_GRAPH_MUTUAL
 
@@ -436,7 +433,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_GRAPH_SEEDED
 
@@ -452,7 +449,7 @@ Errors: None.
 
 Units: dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_CLATHRATE
 
@@ -468,7 +465,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_CUBIC
 
@@ -484,7 +481,7 @@ Errors: None.
 
 Units: dimensionless code 0
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_HEXAGONAL
 
@@ -500,7 +497,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_INTERCLATHRATE
 
@@ -516,7 +513,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_INTERFACIAL
 
@@ -532,7 +529,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_RECUBIC
 
@@ -548,7 +545,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_REHEX
 
@@ -564,7 +561,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_UNCLASSIFIED
 
@@ -580,7 +577,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_LABEL_WATER
 
@@ -596,7 +593,7 @@ Errors: None.
 
 Units: dimensionless code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### SEAMS_OK
 
@@ -612,7 +609,7 @@ Errors: None.
 
 Units: dimensionless status code
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_assign
 
@@ -628,7 +625,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_close
 
@@ -644,7 +641,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_final
 
@@ -660,7 +657,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_fronts
 
@@ -676,7 +673,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_pockets
 
@@ -692,7 +689,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_profile
 
@@ -708,7 +705,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### brine_rejection
 
@@ -724,7 +721,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### c_chars
 
@@ -740,7 +737,7 @@ Errors: An allocation failure stops the program.
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### cage_assign
 
@@ -756,7 +753,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### cage_close
 
@@ -772,7 +769,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### cage_counts
 
@@ -788,7 +785,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### cage_final
 
@@ -804,7 +801,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### cage_labels
 
@@ -820,7 +817,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### domain_size
 
@@ -836,7 +833,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: percolation is dimensionless; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_assign
 
@@ -852,7 +849,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_brine
 
@@ -868,7 +865,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_cages
 
@@ -884,7 +881,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_chill
 
@@ -900,7 +897,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_chill_plus
 
@@ -916,7 +913,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_close
 
@@ -932,7 +929,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_contact_pairs
 
@@ -948,7 +945,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_coordination
 
@@ -964,7 +961,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: rmax in angstrom; coordination is dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_count
 
@@ -980,7 +977,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_density
 
@@ -996,7 +993,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_domains
 
@@ -1012,7 +1009,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_final
 
@@ -1028,7 +1025,7 @@ Errors: None.
 
 Units: dimensionless site codes
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_fingerprint
 
@@ -1044,7 +1041,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_hbonds
 
@@ -1060,7 +1057,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_knn
 
@@ -1076,7 +1073,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_monolayer
 
@@ -1092,7 +1089,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_neighbours
 
@@ -1108,7 +1105,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_prisms
 
@@ -1124,7 +1121,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_q4q6
 
@@ -1140,7 +1137,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_q6bar
 
@@ -1156,7 +1153,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_ql
 
@@ -1172,7 +1169,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_rdf
 
@@ -1188,7 +1185,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_read
 
@@ -1204,7 +1201,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_rings
 
@@ -1220,7 +1217,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_running_cn
 
@@ -1236,7 +1233,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_set_frame
 
@@ -1252,7 +1249,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_set_ortho
 
@@ -1268,7 +1265,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_signature
 
@@ -1284,7 +1281,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_site_kinds
 
@@ -1300,7 +1297,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_steinhardt
 
@@ -1316,7 +1313,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### frame_symmetry
 
@@ -1332,7 +1329,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### label_name
 
@@ -1348,7 +1345,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_assign
 
@@ -1364,7 +1361,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_close
 
@@ -1380,7 +1377,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_columns
 
@@ -1396,7 +1393,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_count
 
@@ -1412,7 +1409,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_final
 
@@ -1428,7 +1425,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### neighbour_offsets
 
@@ -1444,7 +1441,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### new_frame
 
@@ -1460,7 +1457,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### num_threads
 
@@ -1476,7 +1473,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### pair_count
 
@@ -1492,7 +1489,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### path_nframes
 
@@ -1508,7 +1505,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### read_frame
 
@@ -1524,7 +1521,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: frame index is 1-based; coordinates in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_assign
 
@@ -1540,7 +1537,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_close
 
@@ -1556,7 +1553,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_count
 
@@ -1572,7 +1569,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_final
 
@@ -1588,7 +1585,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_fraction
 
@@ -1604,7 +1601,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_histogram
 
@@ -1620,7 +1617,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_sizes
 
@@ -1636,7 +1633,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_symmetry
 
@@ -1652,7 +1649,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### ring_vertices
 
@@ -1668,7 +1665,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_abi
 
@@ -1684,7 +1681,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_analyse
 
@@ -1700,7 +1697,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_destroy
 
@@ -1716,7 +1713,7 @@ Errors: None.
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_fronts
 
@@ -1732,7 +1729,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_pockets
 
@@ -1748,7 +1745,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_profile
 
@@ -1764,7 +1761,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_brine_rejection
 
@@ -1780,7 +1777,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_cages
 
@@ -1796,7 +1793,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_cages_counts
 
@@ -1812,7 +1809,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_cages_destroy
 
@@ -1828,7 +1825,7 @@ Errors: None.
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_cages_labels
 
@@ -1844,7 +1841,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_chill
 
@@ -1860,7 +1857,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; codes are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_chill_plus
 
@@ -1876,7 +1873,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_contact_pairs
 
@@ -1892,7 +1889,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_coordination
 
@@ -1908,7 +1905,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: rmax in angstrom; coordination is dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_density_axis
 
@@ -1924,7 +1921,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: density in inverse cubic angstrom; centers in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_domains
 
@@ -1940,7 +1937,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; percolation is dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_fingerprint
 
@@ -1956,7 +1953,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_fingerprint_atom
 
@@ -1972,7 +1969,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_fingerprint_destroy
 
@@ -1988,7 +1985,7 @@ Errors: None.
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_fingerprint_key
 
@@ -2004,7 +2001,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_fingerprint_rings
 
@@ -2020,7 +2017,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_get_num_threads
 
@@ -2036,7 +2033,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless thread count
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_handle_error
 
@@ -2052,7 +2049,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_hbonds
 
@@ -2068,7 +2065,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: distances in angstrom; angle in degrees
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_label_name
 
@@ -2084,7 +2081,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_last_error
 
@@ -2100,7 +2097,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_monolayer
 
@@ -2116,7 +2113,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; area in square angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_build
 
@@ -2132,7 +2129,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_copy
 
@@ -2148,7 +2145,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_count
 
@@ -2164,7 +2161,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_csr
 
@@ -2180,7 +2177,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless indices
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_destroy
 
@@ -2196,7 +2193,7 @@ Errors: None.
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_neighbours_knn
 
@@ -2212,7 +2209,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; k is a dimensionless count
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_path_nframes
 
@@ -2228,7 +2225,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_prisms
 
@@ -2244,7 +2241,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_q4q6
 
@@ -2260,7 +2257,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; q4 and q6 are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_q6bar
 
@@ -2276,7 +2273,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_ql
 
@@ -2292,7 +2289,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rdf
 
@@ -2308,7 +2305,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: rmax in angstrom; volume in cubic angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_ring_symmetry_name
 
@@ -2324,7 +2321,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_count
 
@@ -2340,7 +2337,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless count
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_destroy
 
@@ -2356,7 +2353,7 @@ Errors: None.
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_find
 
@@ -2372,7 +2369,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; max_depth is a dimensionless ring size
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_fraction
 
@@ -2388,7 +2385,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless fraction
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_histogram
 
@@ -2404,7 +2401,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_labels
 
@@ -2420,7 +2417,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_rings_vertices
 
@@ -2436,7 +2433,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless indices
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_running_cn
 
@@ -2452,7 +2449,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: rmax in angstrom; coordination is dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_set_num_threads
 
@@ -2468,7 +2465,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless thread count
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_signature_cages
 
@@ -2484,7 +2481,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_site_table
 
@@ -2500,7 +2497,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless site codes
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_status_string
 
@@ -2516,7 +2513,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_steinhardt
 
@@ -2532,7 +2529,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: cutoff in angstrom; q_l is dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_count
 
@@ -2548,7 +2545,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless count
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_create
 
@@ -2564,7 +2561,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_destroy
 
@@ -2580,7 +2577,7 @@ Errors: None.
 
 Units: handle
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_read
 
@@ -2596,7 +2593,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: frame index is 1-based; coordinates in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_set_atoms
 
@@ -2612,7 +2609,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_set_frame
 
@@ -2628,7 +2625,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: coordinates and box lengths in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_set_ortho
 
@@ -2644,7 +2641,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: origin and edge lengths in angstrom
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_system_symmetry
 
@@ -2660,7 +2657,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_version
 
@@ -2676,7 +2673,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_version_major
 
@@ -2692,7 +2689,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_version_minor
 
@@ -2708,7 +2705,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_version_patch
 
@@ -2724,7 +2721,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: as named by the parameters
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### seams_version_string
 
@@ -2740,7 +2737,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### set_num_threads
 
@@ -2756,7 +2753,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### signature_count
 
@@ -2772,7 +2769,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless counts
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### site_kinds
 
@@ -2788,7 +2785,7 @@ Errors: A non-zero seams_status. seams_last_error and seams_handle_error hold th
 
 Units: dimensionless site codes
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### status_text
 
@@ -2804,7 +2801,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_assign
 
@@ -2820,7 +2817,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_atom_key
 
@@ -2836,7 +2833,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_close
 
@@ -2852,7 +2849,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_final
 
@@ -2868,7 +2865,7 @@ Errors: None.
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_key
 
@@ -2884,7 +2881,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### topo_rings
 
@@ -2900,7 +2897,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: angstrom where a length is taken; counts are dimensionless
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 
 ### version_text
 
@@ -2916,16 +2913,7 @@ Errors: With stat present, stat receives the seams_status and errmsg the seams_h
 
 Units: text
 
-Example: `docs/examples/minimal_fortran.f90`
+Example: `example/minimal.f90`
 <!-- API_SYMBOLS_END -->
 
-
-## Structure still
-
-```{figure} ../tutorials/molecules/fortran/overlay-web.png
-:alt: Molecule still for this front
-:width: 480px
-
-Ice Ih colored by published CHILL+, drawn with chemparseplot. `python docs/scripts/render_molecules.py --slug fortran` writes the 2400 by 1800 PNG.
-```
 
