@@ -1,0 +1,79 @@
+name: CI
+# Build libseams from seams-core at a pinned ref, install it, then build
+# and test this package with fpm and meson the way a user would. Nothing
+# here publishes: fpm publish only prints its upload data.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # seams-core release/2.14.0. Replace with repository d-SEAMS/seams-core
+  # and ref v2.14.0 once that tag exists.
+  SEAMS_CORE_REPOSITORY: HaoZeke/seams-core
+  SEAMS_CORE_REF: 2b5c3e00f60aeb7fda6e1e705d6cc61ec6d2c31c
+  SEAMS_PREFIX: ${{ github.workspace }}/../seams-prefix
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.SEAMS_CORE_REPOSITORY }}
+          ref: ${{ env.SEAMS_CORE_REF }}
+          path: _seams-core
+      - name: Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ gfortran ninja-build pkg-config libeigen3-dev libgomp1
+          # 24.04 has no libflexiblas-dev; the seams-core script builds it.
+          sudo sh _seams-core/scripts/install_flexiblas.sh
+          pipx install meson
+          pipx install fpm
+      - name: Build and install libseams
+        working-directory: _seams-core
+        run: |
+          meson setup build-pkg --buildtype=release --prefix="$SEAMS_PREFIX" --libdir=lib \
+            -Dwith_python=false -Dwith_tests=false -Dwith_fortran=disabled -Dwith_lua=disabled \
+            -Dwith_chemfiles=disabled -Dwith_lammps=disabled -Dwith_gromacs=disabled \
+            -Dwith_openmm=disabled -Dwith_plumed=disabled -Dwith_gpulite=disabled
+          ninja -C build-pkg
+          meson install -C build-pkg
+      - name: Point the builds at libseams
+        run: |
+          # libseams.so has no RUNPATH to the libraries installed beside it.
+          echo "LD_LIBRARY_PATH=$SEAMS_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$SEAMS_PREFIX/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "FPM_LDFLAGS=-L$SEAMS_PREFIX/lib -Wl,-rpath,$SEAMS_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "OMP_NUM_THREADS=1" >> "$GITHUB_ENV"
+      - name: fpm test
+        run: fpm test
+      - name: fpm examples
+        run: |
+          fpm run --example cubic
+          fpm run --example minimal -- input/traj/genice_sI.lammpstrj
+      - name: Downstream project with a path dependency
+        working-directory: examples/downstream
+        run: fpm run
+      - name: Meson
+        run: |
+          meson setup build/meson
+          meson test -C build/meson --print-errorlogs
+      # fpm publish archives fpm_model.json before writing it (fpm 0.12,
+      # 0.13), so dump the model first. --show-upload-data does not upload.
+      - name: Registry upload data
+        run: |
+          fpm build --dump fpm_model.json
+          fpm publish --show-upload-data
