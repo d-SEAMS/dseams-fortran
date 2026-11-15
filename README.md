@@ -111,6 +111,43 @@ gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams
 `docs/tutorials/fortran.md` the tutorial. `ford ford.md` writes the
 FORD reference to `build/ford`.
 
+## Development
+
+This repository holds only the Fortran side. The engine, the C API
+(`libseams`, `include/seams.h`) and the language-front ABI
+(`libseams_lang`) are developed in
+[d-SEAMS/seams-core](https://github.com/d-SEAMS/seams-core); an analysis
+or a C API change lands there first and is bound here afterwards.
+The contributing guide at the repository root has the full contract.
+
+To build against a local seams-core checkout, build it in place and point
+both builds at its build tree:
+
+```bash
+(cd ../seams-core && meson setup bbdir -Dwith_python=false -Dwith_fortran=disabled && ninja -C bbdir)
+SC=$PWD/../seams-core/bbdir
+export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/bindings"
+export LD_LIBRARY_PATH=$SC/src:$SC/bindings
+fpm test
+
+PKG_CONFIG_PATH=$SC/meson-uninstalled meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
+meson test -C build/meson
+```
+
+CI builds seams-core at the commit named by `SEAMS_CORE_REF` in
+`.github/workflows/ci.yml`. Until seams-core tags v2.14.0 that is a
+commit on its `release/2.14.0` branch.
+
+Releases go in this order:
+
+1. seams-core tags `vX.Y.Z` on d-SEAMS/seams-core.
+2. This repository moves `SEAMS_CORE_REF` to that tag, sets the version in
+   `fpm.toml` and `meson.build`, folds `changelog.d/` into
+   `CHANGELOG.md` with `towncrier build --version X.Y.Z`, and tags
+   `vX.Y.Z` once CI passes.
+3. The fpm registry entry from `packaging/fpm/registry.toml` goes to
+   fortran-lang/fpm-registry, naming that tag.
+
 ## License
 
 MIT. See `LICENSE`.
