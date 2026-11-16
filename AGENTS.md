@@ -132,7 +132,7 @@ The package version is the seams-core version it binds.
 1. seams-core tags the release (`vX.Y.Z` on d-SEAMS/seams-core).
 2. Here: set `SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core` and
    `SEAMS_CORE_REF: vX.Y.Z` in `.github/workflows/ci.yml`, set `version` in
-   `fpm.toml` and `meson.build` to `X.Y.Z`, update the tag in
+   `fpm.toml`, `meson.build` and `CITATION.cff` to `X.Y.Z`, update the tag in
    `packaging/fpm/registry.toml`, the README and `examples/downstream`, run
    `towncrier build --version X.Y.Z`, and wait for CI on that commit.
 3. Tag `vX.Y.Z` here.
