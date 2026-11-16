@@ -130,7 +130,7 @@ export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/b
 export LD_LIBRARY_PATH=$SC/src:$SC/bindings
 fpm test
 
-PKG_CONFIG_PATH=$SC/meson-uninstalled meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
+meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson
 ```
 

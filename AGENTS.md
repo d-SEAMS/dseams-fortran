@@ -83,8 +83,7 @@ fpm run --example cubic
 fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 (cd examples/downstream && fpm run)
 
-PKG_CONFIG_PATH=$SC/meson-uninstalled \
-  meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
+meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson --print-errorlogs
 
 fpm build --dump fpm_model.json && fpm publish --show-upload-data
