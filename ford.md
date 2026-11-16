@@ -10,7 +10,7 @@ version: 2.14.0
 src_dir: ./src
 exclude_dir: ./example
              ./test
-exclude: seams_support.f90
+exclude: src/seams_support.f90
 output_dir: ./build/ford
 preprocess: false
 display: public

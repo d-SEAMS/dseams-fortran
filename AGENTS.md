@@ -87,6 +87,7 @@ meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson --print-errorlogs
 
 fpm build --dump fpm_model.json && fpm publish --show-upload-data
+ford ford.md
 ```
 
 `fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok` and
