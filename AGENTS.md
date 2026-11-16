@@ -66,8 +66,7 @@ holds `libseams.so` in `bbdir/src` and `libseams_lang.so` in
 
 ```bash
 git -C ../seams-core checkout "$SEAMS_CORE_REF"
-(cd ../seams-core && pixi run meson setup bbdir -Dwith_python=false -Dwith_fortran=disabled \
-  && pixi run ninja -C bbdir)
+(cd ../seams-core && pixi run meson setup bbdir && pixi run ninja -C bbdir)
 
 SC=$PWD/../seams-core/bbdir
 export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/bindings"
@@ -84,11 +83,11 @@ fpm run --example cubic
 fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 (cd examples/downstream && fpm run)
 
-PKG_CONFIG_PATH=$SC/meson-uninstalled \
-  meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
+meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson --print-errorlogs
 
 fpm build --dump fpm_model.json && fpm publish --show-upload-data
+ford ford.md
 ```
 
 `fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok` and
@@ -133,7 +132,7 @@ The package version is the seams-core version it binds.
 1. seams-core tags the release (`vX.Y.Z` on d-SEAMS/seams-core).
 2. Here: set `SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core` and
    `SEAMS_CORE_REF: vX.Y.Z` in `.github/workflows/ci.yml`, set `version` in
-   `fpm.toml` and `meson.build` to `X.Y.Z`, update the tag in
+   `fpm.toml`, `meson.build` and `CITATION.cff` to `X.Y.Z`, update the tag in
    `packaging/fpm/registry.toml`, the README and `examples/downstream`, run
    `towncrier build --version X.Y.Z`, and wait for CI on that commit.
 3. Tag `vX.Y.Z` here.
