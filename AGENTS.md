@@ -66,8 +66,7 @@ holds `libseams.so` in `bbdir/src` and `libseams_lang.so` in
 
 ```bash
 git -C ../seams-core checkout "$SEAMS_CORE_REF"
-(cd ../seams-core && pixi run meson setup bbdir -Dwith_python=false -Dwith_fortran=disabled \
-  && pixi run ninja -C bbdir)
+(cd ../seams-core && pixi run meson setup bbdir && pixi run ninja -C bbdir)
 
 SC=$PWD/../seams-core/bbdir
 export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/bindings"

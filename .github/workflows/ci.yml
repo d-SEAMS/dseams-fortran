@@ -17,7 +17,7 @@ env:
   # seams-core release/2.14.0. Replace with repository d-SEAMS/seams-core
   # and ref v2.14.0 once that tag exists.
   SEAMS_CORE_REPOSITORY: HaoZeke/seams-core
-  SEAMS_CORE_REF: 2b5c3e00f60aeb7fda6e1e705d6cc61ec6d2c31c
+  SEAMS_CORE_REF: 628b0af94b4d3bf52426708a0d08436027c8e4fa
   SEAMS_PREFIX: ${{ github.workspace }}/../seams-prefix
 
 concurrency:
@@ -46,8 +46,7 @@ jobs:
         working-directory: _seams-core
         run: |
           meson setup build-pkg --buildtype=release --prefix="$SEAMS_PREFIX" --libdir=lib \
-            -Dwith_python=false -Dwith_tests=false -Dwith_fortran=disabled -Dwith_lua=disabled \
-            -Dwith_chemfiles=disabled -Dwith_lammps=disabled -Dwith_gromacs=disabled \
+            -Dwith_tests=false -Dwith_chemfiles=disabled -Dwith_lammps=disabled -Dwith_gromacs=disabled \
             -Dwith_openmm=disabled -Dwith_plumed=disabled -Dwith_gpulite=disabled
           ninja -C build-pkg
           meson install -C build-pkg

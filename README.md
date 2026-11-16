@@ -22,7 +22,7 @@ The package links an installed libseams 2.14.0 and does not build it.
 From a seams-core checkout at `v2.14.0`:
 
 ```bash
-meson setup build --prefix="$PREFIX" --libdir=lib -Dwith_python=false
+meson setup build --prefix="$PREFIX" --libdir=lib
 meson install -C build
 ```
 
@@ -124,7 +124,7 @@ To build against a local seams-core checkout, build it in place and point
 both builds at its build tree:
 
 ```bash
-(cd ../seams-core && meson setup bbdir -Dwith_python=false -Dwith_fortran=disabled && ninja -C bbdir)
+(cd ../seams-core && meson setup bbdir && ninja -C bbdir)
 SC=$PWD/../seams-core/bbdir
 export FPM_LDFLAGS="-L$SC/src -L$SC/bindings -Wl,-rpath,$SC/src -Wl,-rpath,$SC/bindings"
 export LD_LIBRARY_PATH=$SC/src:$SC/bindings
