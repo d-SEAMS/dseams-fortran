@@ -54,10 +54,12 @@ jobs:
       - name: Point the builds at libseams
         run: |
           # libseams.so has no RUNPATH to the libraries installed beside it.
-          echo "LD_LIBRARY_PATH=$SEAMS_PREFIX/lib" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=$SEAMS_PREFIX/lib/pkgconfig" >> "$GITHUB_ENV"
-          echo "FPM_LDFLAGS=-L$SEAMS_PREFIX/lib -Wl,-rpath,$SEAMS_PREFIX/lib" >> "$GITHUB_ENV"
-          echo "OMP_NUM_THREADS=1" >> "$GITHUB_ENV"
+          {
+            echo "LD_LIBRARY_PATH=$SEAMS_PREFIX/lib"
+            echo "PKG_CONFIG_PATH=$SEAMS_PREFIX/lib/pkgconfig"
+            echo "FPM_LDFLAGS=-L$SEAMS_PREFIX/lib -Wl,-rpath,$SEAMS_PREFIX/lib"
+            echo "OMP_NUM_THREADS=1"
+          } >> "$GITHUB_ENV"
       - name: fpm test
         run: fpm test
       - name: fpm examples
