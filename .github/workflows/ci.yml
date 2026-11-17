@@ -43,6 +43,8 @@ jobs:
           pipx install meson
           pipx install fpm
           pipx install ford==7.0.13
+          pipx install sphinx
+          pipx inject sphinx pydata-sphinx-theme myst-parser
       - name: Build and install libseams
         working-directory: _seams-core
         run: |
@@ -73,10 +75,16 @@ jobs:
         run: |
           meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
           meson test -C build/meson --print-errorlogs
-      # ford.md writes the API reference to build/ford. Nothing publishes
-      # it; the step keeps the FORD project file buildable.
-      - name: FORD manual
-        run: ford ford.md
+      # ford.md writes the API reference. The coverage check fails when a
+      # public symbol has no page. Sphinx builds the manual around it.
+      # Nothing here publishes the HTML.
+      - name: Documentation
+        run: |
+          ford ford.md
+          python3 docs/check_api_coverage.py build/ford
+          sphinx-build -W -b html docs build/html
+          python3 docs/assemble_site.py build/html build/ford
+          python3 docs/check_site.py build/html
       # fpm publish archives fpm_model.json before writing it (fpm 0.12,
       # 0.13), so dump the model first. --show-upload-data does not upload.
       - name: Registry upload data
