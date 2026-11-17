@@ -1,1 +1,0 @@
-The Fortran modules are the `dseams` fpm package at the root of d-SEAMS/dseams-fortran, split out of seams-core with history. Depend on it with `dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0" }`.
