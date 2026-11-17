@@ -14,6 +14,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from seo import enhance
+
 
 def main() -> int:
     if len(sys.argv) != 3:
@@ -38,6 +40,7 @@ def main() -> int:
             rel = Path(os.path.relpath(dest, page.parent)).as_posix()
             page.write_text(text.replace(prefix, rel), encoding="utf-8")
             print("relative links in {}".format(page.relative_to(html)))
+    enhance(html)
     print("copied {} -> {}".format(ford, dest))
     return 0
 

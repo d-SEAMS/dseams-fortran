@@ -3,6 +3,13 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from seo import sphinx_build_finished
+
 project = "dseams"
 author = "d-SEAMS developers"
 copyright = "2018, d-SEAMS developers"
@@ -19,7 +26,7 @@ root_doc = "index"
 myst_heading_anchors = 3
 
 html_theme = "pydata_sphinx_theme"
-html_title = "dseams"
+html_title = "dseams Fortran API and tutorials"
 html_baseurl = "https://fortran.dseams.info/"
 html_static_path = ["_static"]
 html_css_files = ["dseams.css"]
@@ -43,3 +50,7 @@ html_theme_options = {
 }
 templates_path = []
 html_show_sourcelink = False
+
+
+def setup(app):
+    app.connect("build-finished", sphinx_build_finished)

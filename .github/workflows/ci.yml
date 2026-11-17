@@ -104,6 +104,7 @@ jobs:
           sphinx-build -W -b html docs build/html
           python3 docs/assemble_site.py build/html build/ford
           python3 docs/check_site.py build/html
+          python3 docs/seo.py --check build/html
       # The site's own URL is skipped: build/html is that site, checked
       # here before it is deployed. _static holds unrendered theme macros.
       - name: Link check
