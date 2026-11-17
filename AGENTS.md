@@ -55,12 +55,13 @@ test also links `-lseams_lang`.
   their C compile flags are dropped). When pkg-config cannot resolve them,
   `-Dseams_libdir=dir1,dir2` names the directories to search.
 
-The seams-core commit CI builds is `SEAMS_CORE_REPOSITORY` and
-`SEAMS_CORE_REF` at the top of `.github/workflows/ci.yml`.
+CI builds the seams-core tag named by `SEAMS_CORE_REPOSITORY` and
+`SEAMS_CORE_REF` at the top of `.github/workflows/ci.yml`. A release
+pins that tag.
 
 ## Build and test
 
-Build seams-core at the pinned commit in a sibling checkout. Its build tree
+Build seams-core at the pinned tag in a sibling checkout. Its build tree
 holds `libseams.so` in `bbdir/src` and `libseams_lang.so` in
 `bbdir/bindings`:
 

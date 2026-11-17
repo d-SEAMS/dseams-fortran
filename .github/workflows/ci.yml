@@ -14,10 +14,10 @@ permissions:
   contents: read
 
 env:
-  # seams-core release/2.14.0. Replace with repository d-SEAMS/seams-core
-  # and ref v2.14.0 once that tag exists.
-  SEAMS_CORE_REPOSITORY: HaoZeke/seams-core
-  SEAMS_CORE_REF: 628b0af94b4d3bf52426708a0d08436027c8e4fa
+  # seams-core v2.14.0. The ref is the annotated tag, not a branch.
+  # The tag points at acc8bbc803f55bac39493c85300f87a8ce302829.
+  SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core
+  SEAMS_CORE_REF: v2.14.0
   SEAMS_PREFIX: ${{ github.workspace }}/../seams-prefix
 
 concurrency:

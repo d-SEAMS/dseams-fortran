@@ -134,9 +134,9 @@ meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson
 ```
 
-CI builds seams-core at the commit named by `SEAMS_CORE_REF` in
-`.github/workflows/ci.yml`. Until seams-core tags v2.14.0 that is a
-commit on its `release/2.14.0` branch.
+CI builds seams-core tag `v2.14.0` on `d-SEAMS/seams-core`, named by
+`SEAMS_CORE_REPOSITORY` and `SEAMS_CORE_REF` in
+`.github/workflows/ci.yml`.
 
 Releases go in this order:
 

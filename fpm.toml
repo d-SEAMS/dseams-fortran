@@ -9,8 +9,9 @@ homepage = "https://dseams.info"
 categories = ["scientific"]
 keywords = ["molecular-dynamics", "ice", "clathrate", "chemistry"]
 
-# The modules bind include/seams.h from seams-core through iso_c_binding
-# and link an installed libseams (meson install, conda, Nix or Spack).
+# The modules bind include/seams.h from seams-core tag v2.14.0
+# (d-SEAMS/seams-core) through iso_c_binding and link an installed
+# libseams of that version (meson install, conda, Nix or Spack).
 # Point fpm at it:
 #   export FPM_LDFLAGS="$(pkg-config --libs-only-L seams) -Wl,-rpath,$(pkg-config --variable=libdir seams)"
 [build]
