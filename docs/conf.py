@@ -20,6 +20,7 @@ myst_heading_anchors = 3
 
 html_theme = "pydata_sphinx_theme"
 html_title = "dseams"
+html_baseurl = "https://fortran.dseams.info/"
 html_static_path = ["_static"]
 html_css_files = ["dseams.css"]
 html_theme_options = {

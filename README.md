@@ -107,9 +107,9 @@ gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams
 
 ## Documentation
 
-- Site: <https://d-seams.github.io/dseams-fortran/>, the manual with the
+- Site: <https://fortran.dseams.info/>, the manual with the
   FORD symbol pages under
-  [`api/generated/`](https://d-seams.github.io/dseams-fortran/api/generated/index.html).
+  [`api/generated/`](https://fortran.dseams.info/api/generated/index.html).
 - Engine manual: [the Fortran page](https://docs.dseams.info/stable/fortran.html)
   of [docs.dseams.info](https://docs.dseams.info).
 - Video: [Fortran on ice Ih](https://odysee.com/dseams-fortran:e15a82c2f40ff1fdf10c89ff6c9f78b6b3fd583b).
