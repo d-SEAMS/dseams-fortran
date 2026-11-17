@@ -26,7 +26,7 @@ module seams_support
   integer, parameter, public :: kind_topo = 5
   integer, parameter, public :: kind_brine = 6
 
-  type, public :: handle_box
+  type :: handle_box
     type(c_ptr) :: raw = c_null_ptr
     integer :: refcount = 0
     integer :: kind = 0

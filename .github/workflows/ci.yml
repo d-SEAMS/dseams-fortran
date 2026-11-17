@@ -27,7 +27,12 @@ concurrency:
 
 jobs:
   test:
+    name: test (${{ matrix.compiler }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gfortran, flang-new-19]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,7 +43,7 @@ jobs:
       - name: Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ gfortran ninja-build pkg-config libeigen3-dev libgomp1
+          sudo apt-get install -y g++ gfortran flang-19 ninja-build pkg-config libeigen3-dev libgomp1
           # 24.04 has no libflexiblas-dev; the seams-core script builds it.
           sudo sh _seams-core/scripts/install_flexiblas.sh
           pipx install meson
@@ -61,23 +66,24 @@ jobs:
             echo "OMP_NUM_THREADS=1"
           } >> "$GITHUB_ENV"
       - name: fpm test
-        run: fpm test
+        run: fpm test --compiler "${{ matrix.compiler }}"
       - name: fpm examples
         run: |
-          fpm run --example cubic
-          fpm run --example minimal -- input/traj/genice_sI.lammpstrj
+          fpm run --compiler "${{ matrix.compiler }}" --example cubic
+          fpm run --compiler "${{ matrix.compiler }}" --example minimal -- input/traj/genice_sI.lammpstrj
       - name: Downstream project with a path dependency
         working-directory: examples/downstream
-        run: fpm run
+        run: fpm run --compiler "${{ matrix.compiler }}"
       - name: Meson
         run: |
-          meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
+          FC="${{ matrix.compiler }}" meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
           meson test -C build/meson --print-errorlogs
       # fpm publish archives fpm_model.json before writing it (fpm 0.12,
       # 0.13), so dump the model first. --show-upload-data does not upload.
       - name: Registry upload data
+        if: matrix.compiler == 'gfortran'
         run: |
-          fpm build --dump fpm_model.json
+          fpm build --compiler gfortran --dump fpm_model.json
           fpm publish --show-upload-data
 
   docs:
