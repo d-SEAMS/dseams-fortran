@@ -21,34 +21,42 @@ source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
-exclude_patterns = ["_build", "_includes", "build"]
+exclude_patterns = ["_build", "_includes", "_ford", "build"]
 root_doc = "index"
 myst_heading_anchors = 3
 
-html_theme = "pydata_sphinx_theme"
+html_theme = "shibuya"
 html_title = "dseams Fortran API and tutorials"
 html_baseurl = "https://fortran.dseams.info/"
 html_static_path = ["_static"]
-html_css_files = ["dseams.css"]
+html_favicon = "_static/dseams/favicon.ico"
+html_css_files = [
+    "dseams/dseams-tokens.css",
+    "dseams/dseams-family.css",
+    "dseams/dseams-shibuya.css",
+]
 html_theme_options = {
-    "navigation_depth": 3,
-    "show_nav_level": 2,
-    "collapse_navigation": False,
-    "external_links": [
-        {"name": "d-SEAMS", "url": "https://docs.dseams.info/"},
+    "github_url": "https://github.com/d-SEAMS/dseams-fortran",
+    "accent_color": "blue",
+    "dark_code": True,
+    "show_ai_links": False,
+    "globaltoc_expand_depth": 1,
+    "toctree_collapse": True,
+    "toctree_maxdepth": 3,
+    "toctree_titles_only": True,
+    "nav_links": [
+        {"title": "Getting started", "url": "getting-started/index"},
+        {"title": "User guide", "url": "user-guide/index"},
+        {"title": "API reference", "url": "api/index"},
+        {"title": "Development", "url": "development/index"},
     ],
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/d-SEAMS/dseams-fortran",
-            "icon": "fa-brands fa-github",
-        },
-    ],
-    "footer_start": ["copyright"],
-    "footer_end": [],
-    "secondary_sidebar_items": ["page-toc"],
 }
-templates_path = []
+html_sidebars = {
+    "**": [
+        "sidebars/localtoc.html",
+    ],
+}
+templates_path = ["_templates"]
 html_show_sourcelink = False
 
 

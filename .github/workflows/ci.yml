@@ -94,7 +94,7 @@ jobs:
         run: |
           pipx install ford==7.0.13
           pipx install sphinx
-          pipx inject sphinx pydata-sphinx-theme myst-parser
+          pipx inject sphinx shibuya myst-parser
       # ford.md writes the API reference. The coverage check fails when a
       # public symbol has no page. Sphinx builds the manual around it.
       - name: Documentation

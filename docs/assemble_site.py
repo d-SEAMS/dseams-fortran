@@ -10,11 +10,51 @@ are rewritten relative to each page so the site works when served.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
 
 from seo import enhance
+
+VENDOR = Path(__file__).resolve().parent / "_ford"
+
+CDN_CSS = re.compile(r'[ \t]*<link href="https://cdn\.jsdelivr\.net/npm/bootstrap@[^"]*"[^>]*>\n?', re.S)
+CDN_JS = re.compile(r'[ \t]*<script src="https://cdn\.jsdelivr\.net/npm/bootstrap@[^"]*"[^>]*></script>\n?', re.S)
+MATHJAX_CONFIG = re.compile(r'[ \t]*<script type="text/x-mathjax-config">.*?</script>\n?', re.S)
+MATHJAX_LOAD = re.compile(r'[ \t]*<script src="https://cdn\.jsdelivr\.net/npm/mathjax@[^"]*"[^>]*></script>\n?', re.S)
+LUNR = re.compile(r'<script src="https://unpkg\.com/lunr/lunr\.js"></script>')
+SCHEME = (
+    "<script>document.documentElement.setAttribute('data-bs-theme',"
+    "matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')</script>"
+)
+
+
+def theme_page(text: str, rel: str) -> str:
+    """Point a FORD page at the vendored Bootstrap and the d-SEAMS theme."""
+    vendor = "{}/vendor".format(rel)
+    text = CDN_CSS.sub("", text)
+    text = CDN_JS.sub("", text)
+    text = MATHJAX_CONFIG.sub("", text)
+    text = MATHJAX_LOAD.sub("", text)
+    text = LUNR.sub('<script src="{}/lunr.min.js"></script>'.format(vendor), text)
+    boot = (
+        SCHEME
+        + '<link href="{v}/bootstrap.min.css" rel="stylesheet">'
+        '<script src="{v}/bootstrap.bundle.min.js"></script>'
+    ).format(v=vendor)
+    theme = (
+        '<link href="{v}/dseams-tokens.css" rel="stylesheet">'
+        '<link href="{v}/dseams-family.css" rel="stylesheet">'
+        '<link href="{v}/dseams-ford.css" rel="stylesheet">'
+    ).format(v=vendor)
+    text = text.replace("<!-- Bootstrap -->", "<!-- Bootstrap -->" + boot, 1)
+    text = text.replace("</head>", theme + "</head>", 1)
+    text = re.sub(r'[ \t]*<link rel="icon"[^>]*>\n?', "", text, count=1)
+    text = re.sub(r"(<head>)", r'\1<link rel="icon" type="image/png" href="{}/favicon-32.png">'.format(vendor), text, count=1)
+    family = (VENDOR / "family.html").read_text(encoding="utf-8")
+    text = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + "\n" + family, text, count=1)
+    return text
 
 
 def main() -> int:
@@ -33,13 +73,18 @@ def main() -> int:
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(ford, dest)
+    vendor = dest / "vendor"
+    shutil.copytree(VENDOR, vendor, ignore=shutil.ignore_patterns("family.html"))
     prefix = str(ford.resolve())
     for page in dest.rglob("*.html"):
+        if vendor in page.parents:
+            continue
         text = page.read_text(encoding="utf-8")
+        rel = Path(os.path.relpath(dest, page.parent)).as_posix()
         if prefix in text:
-            rel = Path(os.path.relpath(dest, page.parent)).as_posix()
-            page.write_text(text.replace(prefix, rel), encoding="utf-8")
+            text = text.replace(prefix, rel)
             print("relative links in {}".format(page.relative_to(html)))
+        page.write_text(theme_page(text, rel), encoding="utf-8")
     enhance(html)
     print("copied {} -> {}".format(ford, dest))
     return 0

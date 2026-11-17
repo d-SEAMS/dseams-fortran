@@ -12,6 +12,7 @@ exclude_dir: ./example
              ./test
 exclude: src/seams_support.f90
 output_dir: ./build/ford
+favicon: ./docs/_ford/favicon-32.png
 preprocess: false
 display: public
          protected
