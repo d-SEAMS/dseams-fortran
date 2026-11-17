@@ -24,16 +24,16 @@ md_extensions: markdown.extensions.toc
                markdown.extensions.smarty
 ---
 
+This is the generated API reference for the Fortran package `dseams`.
 `seams` is the module a program uses. `seams_c` is the `iso_c_binding`
-image of `include/seams.h`. `seams_kinds` holds the `iso_fortran_env`
-kinds. `seams_support` is the reference-counted handle box and is not
-part of the public API.
+image of `include/seams.h`. `seams_kinds` holds `seams_real` and
+`seams_int`.
 
 Coordinates are `real(seams_real)` with shape `(3, n)`. A missing
 `stat` and a missing `errmsg` make a failed call stop with the library
 message. The last finalizer of a handle destroys the C object.
 Assignment shares that object.
 
-Build with fpm from this directory, or pass the sources to gfortran in
-the order `seams_kinds.f90`, `seams_c.f90`, `seams_support.f90`,
-`seams.f90`, `seams_methods.f90`. Link `-lseams`.
+Installation, tutorials and how-tos are the other parts of the dseams
+manual. The engine manual is
+[docs.dseams.info](https://docs.dseams.info/).

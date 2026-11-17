@@ -1,0 +1,1 @@
+The manual is organised as getting started, a user guide, a FORD API reference and development notes. Tutorial pages embed the matching d-SEAMS recordings, and the docs build fails when a public symbol has no generated page.

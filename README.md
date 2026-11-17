@@ -107,9 +107,19 @@ gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams
 
 ## Documentation
 
-`docs/api/fortran.md` is the narrative reference and
-`docs/tutorials/fortran.md` the tutorial. `ford ford.md` writes the
-FORD reference to `build/ford`.
+The manual has four parts: getting started, the user guide (tutorials
+and how-tos), the API reference, and development. From this directory:
+
+```bash
+ford ford.md
+sphinx-build -b html docs build/html
+python3 docs/assemble_site.py build/html build/ford
+```
+
+Open `build/html/index.html`. `docs/api/fortran.md` is the narrative
+reference. FORD writes the symbol pages to `build/ford`, and the
+assemble step copies them to `build/html/api/generated`. The engine
+manual is [docs.dseams.info](https://docs.dseams.info).
 
 ## Development
 

@@ -7,8 +7,9 @@ Kinds are `seams_real` (`real64`) and `seams_int` (`int32`); coordinates have sh
 ## Repository docs
 
 - [README](https://github.com/d-SEAMS/dseams-fortran/blob/main/README.md): Install libseams, link flags for fpm, tests, the meson subproject, the one-file build, development against seams-core and the release order.
-- [API page](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/api/fortran.md): Kinds, handles, errors, every call with its recorded output, and the symbol reference.
-- [Tutorial](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/tutorials/fortran.md): Compile the modules with gfortran and run the C-interface program on a cubic ice cell.
+- [Manual](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/index.rst): Getting started, user guide, API reference and development. Sphinx builds it; FORD fills the API reference.
+- [API page](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/api/fortran.md): Kinds, ownership, errors, and the cubic-ice census. Symbol pages are generated.
+- [Tutorial](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/tutorials/fortran.md): Read ice Ih with the `seams` module.
 - [Language task](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/lang/task-fortran.rst): The ice Ih census every d-SEAMS language front prints, in Fortran against `libseams_lang`.
 - [FORD settings](https://github.com/d-SEAMS/dseams-fortran/blob/main/ford.md): Source for the generated Fortran module reference.
 - [Cubic ice example](https://github.com/d-SEAMS/dseams-fortran/blob/main/example/cubic.f90): Every analysis on a 64-atom cubic cell through the `seams` module.

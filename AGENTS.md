@@ -34,7 +34,7 @@ language-front ABI (`libseams_lang`) live in
 | `examples/downstream/` | A separate fpm project with a path dependency on this one |
 | `input/` | Trajectories the tests read, copied from seams-core |
 | `meson.build`, `meson.options` | Standalone meson project, exported as `dependency('dseams-fortran')` for subprojects |
-| `docs/` | API page, tutorial and language-task page, included by the d-SEAMS docs |
+| `docs/` | User manual: getting started, tutorials, how-tos, the narrative API page, and the FORD coverage check |
 | `ford.md` | FORD settings; output goes to `build/ford` |
 | `packaging/fpm/registry.toml` | Stanza for the fortran-lang fpm registry |
 | `changelog.d/` | Unreleased changelog fragments |
@@ -108,8 +108,11 @@ says so.
    argument order, `value` attributes and kinds.
 3. Wrap them in `seams` (`src/seams.f90` for the interface,
    `src/seams_methods.f90` for the body), with `stat` and `errmsg`.
-4. Call the new symbols from `test/test_capi.f90` and `test/test_high.f90`,
-   and document them in `docs/api/fortran.md`.
+4. Call the new symbols from `test/test_capi.f90` and `test/test_high.f90`.
+   FORD publishes them from the source comments.
+   `docs/check_api_coverage.py` fails the docs build when a public
+   symbol has no page. Describe the call in `docs/api/fortran.md` when
+   a reader needs a worked example.
 5. A new module file goes in the `include` list of `seams.f90` and in
    `fortran_lib_src` and the one-file custom target in `meson.build`.
 
