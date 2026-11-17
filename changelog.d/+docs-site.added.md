@@ -1,0 +1,1 @@
+The manual and the FORD reference are published at https://d-seams.github.io/dseams-fortran/ from every push to `main`. The README links the site, the engine manual's Fortran page and the Fortran recording.
