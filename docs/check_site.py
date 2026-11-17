@@ -12,7 +12,7 @@ IFRAME_RE = re.compile(
     r'<iframe\b[^>]*\bsrc="([^"]+)"',
     re.IGNORECASE,
 )
-HREF_RE = re.compile(r'\b(?:href|src)="([^"]+)"', re.IGNORECASE)
+HREF_RE = re.compile(r"""\b(?:href|src)=["']([^"']+)["']""", re.IGNORECASE)
 
 # Page relative to the Sphinx html root, and the player that belongs on it.
 VIDEOS = {
@@ -105,6 +105,8 @@ def main() -> int:
             if not src.startswith("https://odysee.com/$/embed/"):
                 fail("{} iframe is not an embed player: {}".format(page, src))
         for url in HREF_RE.findall(text):
+            if url.startswith("/"):
+                fail("{} has a site-absolute link {}".format(page.relative_to(root), url))
             target = local_target(page, root, url)
             if target is None:
                 continue
