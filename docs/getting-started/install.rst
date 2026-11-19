@@ -7,12 +7,17 @@ at tag ``v2.14.1``:
 
 .. code-block:: bash
 
-   meson setup build --prefix="$PREFIX" --libdir=lib
+   meson setup build --prefix="$PREFIX" --libdir=lib -Dwith_tests=false
    meson install -C build
 
 That installs ``libseams.so``, ``libseams_lang.so`` and ``seams.pc``
-under ``$PREFIX``. A meson install leaves the libraries libseams loads
-beside it without a RUNPATH, so the loader also needs
+under ``$PREFIX``. Without ``-Dwith_tests=false`` the configure step
+builds the engine's own test suite and asks for libraries only it
+needs. The chemfiles, LAMMPS, GROMACS, OpenMM, PLUMED and GPU
+backends are auto-detected; ``-Dwith_chemfiles=disabled`` and the
+matching ``with_*`` options turn them off for a faster build. A meson
+install leaves the libraries libseams loads beside it without a
+RUNPATH, so the loader also needs
 
 .. code-block:: bash
 
