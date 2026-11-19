@@ -12,6 +12,23 @@ by [towncrier](https://towncrier.readthedocs.io/).
 
 <!-- towncrier release notes start -->
 
+## [2.14.1] - 2026-11-19
+
+### Added
+
+- The manual and the FORD reference are published at https://fortran.dseams.info/ from every push to `main`. The README links the site, the engine manual's Fortran page and the Fortran recording.
+
+### Changed
+
+- Pin CI builds, packaging metadata and documentation to seams-core v2.14.1.
+- The documentation site moves to https://fortran.dseams.info/.
+- The manual is organised as getting started, a user guide, a FORD API reference and development notes. Tutorial pages embed the matching d-SEAMS recordings, and the docs build fails when a public symbol has no generated page.
+
+### Fixed
+
+- Fix Flang 19 builds by declaring the internal handle type public only once.
+
+
 ## [2.14.0] - 2026-11-17
 
 ### Added

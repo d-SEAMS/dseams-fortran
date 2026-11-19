@@ -1,7 +1,8 @@
 # Stanza for fortran-lang/fpm-registry registry.toml.
-# Add it in alphabetical order. The tag v2.14.0 must exist before the
+# Add it in alphabetical order. The tag v2.14.1 must exist before the
 # registry pull request is opened. fpm reads fpm.toml at the repository
 # root.
 [dseams]
 "2.14.0" = {git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0"}
+"2.14.1" = {git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.1"}
 "latest" = {git = "https://github.com/d-SEAMS/dseams-fortran"}

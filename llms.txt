@@ -2,7 +2,7 @@
 
 > dseams-fortran is the fpm package `dseams`, the Fortran interface to d-SEAMS: the `seams_c` module binds the libseams C API through `iso_c_binding`, and the `seams` module wraps it in derived types for CHILL and CHILL+ ice labels, Steinhardt order parameters, primitive rings, cages, RDFs, hydrogen bonds and topological fingerprints of molecular simulation frames.
 
-Kinds are `seams_real` (`real64`) and `seams_int` (`int32`); coordinates have shape `(3, n)`. The package links an installed libseams and does not build one: fpm takes the library directory from `FPM_LDFLAGS`, meson from the `seams` pkg-config module or `-Dseams_libdir`. A project depends on it with `dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.0" }`. The package version is the seams-core release it binds, tag v2.14.0. Contributor instructions are in the contributing guide at the repository root.
+Kinds are `seams_real` (`real64`) and `seams_int` (`int32`); coordinates have shape `(3, n)`. The package links an installed libseams and does not build one: fpm takes the library directory from `FPM_LDFLAGS`, meson from the `seams` pkg-config module or `-Dseams_libdir`. A project depends on it with `dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.1" }`. The package version is the seams-core release it binds, tag v2.14.1. Contributor instructions are in the contributing guide at the repository root.
 
 ## Repository docs
 

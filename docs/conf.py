@@ -13,8 +13,8 @@ from seo import sphinx_build_finished
 project = "dseams"
 author = "d-SEAMS developers"
 copyright = "2018, d-SEAMS developers"
-version = "2.14.0"
-release = "2.14.0"
+version = "2.14.1"
+release = "2.14.1"
 
 extensions = ["myst_parser"]
 source_suffix = {

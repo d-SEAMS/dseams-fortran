@@ -65,7 +65,7 @@ dependency order:
 
 fpm and meson compile ``src/`` and must not also compile this file.
 Linking ``example/cubic.f90`` this way prints the census on the
-`API page <../../api/fortran.html>`_, starting ``version 2.14.0``.
+`API page <../../api/fortran.html>`_, starting ``version 2.14.1``.
 
 Separate objects
 ----------------

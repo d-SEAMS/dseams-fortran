@@ -7,7 +7,7 @@ and ``libseams_lang`` are developed in
 a C API change lands there first and is bound here afterwards. The
 contributing guide at the repository root is the contract for that
 split. The package version is the seams-core release it binds,
-currently 2.14.0.
+currently 2.14.1.
 
 Build the manual
 ----------------
@@ -43,7 +43,7 @@ Run the package
    meson setup build/meson -Dseams_libdir="$PREFIX/lib"
    meson test -C build/meson --print-errorlogs
 
-``$PREFIX`` is a seams-core 2.14.0 install. CI builds that tag. A
+``$PREFIX`` is a seams-core 2.14.1 install. CI builds that tag. A
 local build tree works the same way: ``libseams.so`` is in
 ``bbdir/src`` and ``libseams_lang.so`` is in ``bbdir/bindings``.
 
