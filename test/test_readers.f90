@@ -14,22 +14,6 @@ program test_readers
   integer(seams_int), parameter :: n_pdb = 1_seams_int
   integer(seams_int), parameter :: n_gro = 1_seams_int
 
-  ! TMPDIR set to a directory that is not there: the probe must fail
-  ! closed, rather than write somewhere else. Both queries are then
-  ! false and every read is skipped.
-  if (tmpdir_missing()) then
-    chem = has_chemfiles()
-    rcon = has_readcon()
-    call print_flag("has_chemfiles", chem)
-    call print_flag("has_readcon", rcon)
-    if (chem .or. rcon) stop 6
-    print "(a)", "skip con"
-    print "(a)", "skip pdb"
-    print "(a)", "skip gro"
-    print "(a)", "fortran readers ok"
-    stop
-  end if
-
   chem = has_chemfiles()
   rcon = has_readcon()
   call print_flag("has_chemfiles", chem)
@@ -75,20 +59,6 @@ contains
     print "(a)", trim(name) // " " // mark
   end subroutine print_flag
 
-  function tmpdir_missing() result(yes)
-    logical :: yes
-    character(len=:), allocatable :: dir
-    integer :: length, stat
-    logical :: ex
-    yes = .false.
-    call get_environment_variable("TMPDIR", length=length, status=stat)
-    if (stat /= 0 .or. length <= 0) return
-    allocate(character(len=length) :: dir)
-    call get_environment_variable("TMPDIR", dir)
-    inquire(file=dir, exist=ex)
-    yes = .not. ex
-  end function tmpdir_missing
-
   function stamp_requested() result(yes)
     logical :: yes
     character(len=16) :: value
@@ -97,41 +67,81 @@ contains
     yes = stat == 0 .and. length > 0 .and. value(1:1) == "1"
   end function stamp_requested
 
-  ! The stamp is one line, the probe path. It has to sit in TMPDIR
-  ! (or TEMP, or TMP, or the working directory, in that order).
-  subroutine require_stamp()
-    character(len=:), allocatable :: dir, line
-    character(len=1024) :: buf
-    integer :: unit, iostat, length, stat
-    logical :: ex
-    call get_environment_variable("TMPDIR", length=length, status=stat)
+  ! Same fall-through as the library: the first of TMPDIR, TEMP, TMP
+  ! and the working directory that accepts a file.
+  function chosen_probe_dir() result(dir)
+    character(len=:), allocatable :: dir
+    dir = writable_env("TMPDIR")
+    if (len(dir) > 0) return
+    dir = writable_env("TEMP")
+    if (len(dir) > 0) return
+    dir = writable_env("TMP")
+    if (len(dir) > 0) return
+    dir = "."
+  end function chosen_probe_dir
+
+  function writable_env(name) result(dir)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable :: dir
+    character(len=:), allocatable :: raw
+    integer :: length, stat, unit, iostat
+    call get_environment_variable(name, length=length, status=stat)
     if (stat /= 0 .or. length <= 0) then
-      call get_environment_variable("TEMP", length=length, status=stat)
+      dir = ""
+      return
     end if
-    if (stat /= 0 .or. length <= 0) then
-      call get_environment_variable("TMP", length=length, status=stat)
-    end if
-    if (stat /= 0 .or. length <= 0) then
-      dir = "."
-    else
-      allocate(character(len=length) :: dir)
-      if (env_is("TMPDIR")) then
-        call get_environment_variable("TMPDIR", dir)
-      else if (env_is("TEMP")) then
-        call get_environment_variable("TEMP", dir)
-      else
-        call get_environment_variable("TMP", dir)
-      end if
-    end if
-    inquire(file=trim(dir) // "/dseams-probe-stamp", exist=ex)
-    if (.not. ex) inquire(file=trim(dir) // "\dseams-probe-stamp", exist=ex)
-    if (.not. ex) stop 6
-    open(newunit=unit, file=trim(dir) // "/dseams-probe-stamp", status="old", &
-      action="read", iostat=iostat)
+    allocate(character(len=length) :: raw)
+    call get_environment_variable(name, raw)
+    raw = normalize_dir(raw)
+    open(newunit=unit, file=join_dir(raw, "dseams-readers-try"), status="replace", &
+      action="write", iostat=iostat)
     if (iostat /= 0) then
-      open(newunit=unit, file=trim(dir) // "\dseams-probe-stamp", status="old", &
-        action="read", iostat=iostat)
+      dir = ""
+      return
     end if
+    close(unit, status="delete")
+    dir = raw
+  end function writable_env
+
+  function join_dir(dir, name) result(path)
+    character(len=*), intent(in) :: dir, name
+    character(len=:), allocatable :: path
+    character(len=1) :: sep
+    if (len(dir) == 0) then
+      path = name
+      return
+    end if
+    if (dir(len(dir):len(dir)) == "/" .or. dir(len(dir):len(dir)) == "\") then
+      path = dir // name
+      return
+    end if
+    sep = "/"
+    if (index(dir, "\") > 0 .and. index(dir, "/") == 0) sep = "\"
+    path = dir // sep // name
+  end function join_dir
+
+  function normalize_dir(raw) result(dir)
+    character(len=*), intent(in) :: raw
+    character(len=:), allocatable :: dir
+    dir = trim(raw)
+    do while (len(dir) > 1)
+      if (dir(len(dir):len(dir)) /= "/" .and. dir(len(dir):len(dir)) /= "\") exit
+      dir = dir(1:len(dir) - 1)
+    end do
+  end function normalize_dir
+
+  ! The stamp is one line, the probe path. It has to sit in the
+  ! directory the fall-through selected.
+  subroutine require_stamp()
+    character(len=:), allocatable :: dir, line, stamp
+    character(len=1024) :: buf
+    integer :: unit, iostat
+    logical :: ex
+    dir = chosen_probe_dir()
+    stamp = join_dir(dir, "dseams-probe-stamp")
+    inquire(file=stamp, exist=ex)
+    if (.not. ex) stop 6
+    open(newunit=unit, file=stamp, status="old", action="read", iostat=iostat)
     if (iostat /= 0) stop 6
     read(unit, "(a)", iostat=iostat) buf
     close(unit, status="delete")
@@ -139,14 +149,6 @@ contains
     line = trim(buf)
     if (index(line, trim(dir)) /= 1) stop 7
   end subroutine require_stamp
-
-  function env_is(name) result(yes)
-    character(len=*), intent(in) :: name
-    logical :: yes
-    integer :: length, stat
-    call get_environment_variable(name, length=length, status=stat)
-    yes = stat == 0 .and. length > 0
-  end function env_is
 
   function readers_required() result(yes)
     logical :: yes

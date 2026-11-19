@@ -95,8 +95,8 @@ ford ford.md
 the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
 0 0 0`, and from `readers` the lines `has_chemfiles`, `has_readcon`,
 `read` or `skip` for `con`, `pdb` and `gro`, then `fortran readers ok`.
-Meson runs ten tests, including the one-file build of `seams.f90` and
-two `readers` runs that set `TMPDIR`.
+Meson runs eleven tests, including the one-file build of `seams.f90`
+and three `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
 
 Every check must pass before a change is called done. Fix the code under
 test; do not skip, comment out, loosen or delete a test to get there. A test

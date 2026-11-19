@@ -1,6 +1,6 @@
 ! Copyright (c) d-SEAMS developers
 submodule (seams) seams_methods
-  use, intrinsic :: iso_fortran_env, only: int64
+  use, intrinsic :: iso_fortran_env, only: int64, error_unit
   use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char
   use seams_c, only: seams_version_string, seams_label_name, seams_status_string, &
     seams_set_num_threads, seams_get_num_threads, seams_system_create, &
@@ -20,12 +20,14 @@ submodule (seams) seams_methods
   implicit none
   ! Cached answers of the reader probes. The loaded libseams is the source
   ! of truth: fpm never sees seams.pc, and the SEAMS_HAS_* macros meson
-  ! passes on are informational. The probe file goes in TMPDIR, TEMP or
-  ! TMP, or in the working directory when none of those is set.
+  ! passes on are informational. The probe file goes in the first of
+  ! TMPDIR, TEMP, TMP and the working directory that can be written.
   logical, save :: chem_known = .false.
   logical, save :: chem_value = .false.
   logical, save :: con_known = .false.
   logical, save :: con_value = .false.
+  logical, save :: probe_warned = .false.
+  integer, save :: probe_serial = 0
 contains
 
   function opt_real(value, fallback) result(out)
@@ -1170,21 +1172,62 @@ contains
     yes = con_value
   end procedure has_readcon
 
-  ! Directory for the probe file. TMPDIR, then TEMP, then TMP. The
-  ! working directory is the fallback, so this never assumes a Unix
-  ! temp path and never calls getpid. A trailing slash is removed
-  ! except when the directory is the root.
+  ! First directory that can take a file. A set but missing or
+  ! unwritable TMPDIR falls through to TEMP, then TMP, then the
+  ! working directory. Empty means every candidate failed. This never
+  ! assumes a Unix temp path and never calls getpid.
   function temp_directory() result(dir)
     character(len=:), allocatable :: dir
-    dir = env_string("TMPDIR")
-    if (len(dir) == 0) dir = env_string("TEMP")
-    if (len(dir) == 0) dir = env_string("TMP")
-    if (len(dir) == 0) dir = "."
+    dir = usable_env("TMPDIR")
+    if (len(dir) > 0) return
+    dir = usable_env("TEMP")
+    if (len(dir) > 0) return
+    dir = usable_env("TMP")
+    if (len(dir) > 0) return
+    if (can_write(".")) then
+      dir = "."
+      return
+    end if
+    dir = ""
+  end function temp_directory
+
+  function usable_env(name) result(dir)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable :: dir
+    dir = normalize_dir(env_string(name))
+    if (len(dir) == 0) return
+    if (.not. can_write(dir)) dir = ""
+  end function usable_env
+
+  function normalize_dir(raw) result(dir)
+    character(len=*), intent(in) :: raw
+    character(len=:), allocatable :: dir
+    dir = trim(raw)
     do while (len(dir) > 1)
       if (dir(len(dir):len(dir)) /= "/" .and. dir(len(dir):len(dir)) /= "\") exit
       dir = dir(1:len(dir) - 1)
     end do
-  end function temp_directory
+  end function normalize_dir
+
+  ! True when a new file can be created in dir and then removed.
+  function can_write(dir) result(yes)
+    character(len=*), intent(in) :: dir
+    logical :: yes
+    character(len=:), allocatable :: path
+    character(len=48) :: token
+    integer(int64) :: ticks
+    integer :: unit, iostat
+    yes = .false.
+    if (len_trim(dir) == 0) return
+    call system_clock(ticks)
+    probe_serial = probe_serial + 1
+    write(token, "(i0,'-',i0)") ticks, probe_serial
+    path = join_dir(trim(dir), "dseams-probe-try-" // trim(token))
+    open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
+    if (iostat /= 0) return
+    close(unit, status="delete")
+    yes = .true.
+  end function can_write
 
   function env_string(name) result(value)
     character(len=*), intent(in) :: name
@@ -1199,37 +1242,44 @@ contains
     call get_environment_variable(name, value)
   end function env_string
 
-  function join_temp(name) result(path)
-    character(len=*), intent(in) :: name
+  function join_dir(dir, name) result(path)
+    character(len=*), intent(in) :: dir, name
     character(len=:), allocatable :: path
-    character(len=:), allocatable :: dir
     character(len=1) :: sep
-    dir = temp_directory()
+    if (len(dir) == 0) then
+      path = name
+      return
+    end if
     if (dir(len(dir):len(dir)) == "/" .or. dir(len(dir):len(dir)) == "\") then
       path = dir // name
       return
     end if
     sep = "/"
-    if (index(dir, "\") > 0) sep = "\"
+    if (index(dir, "\") > 0 .and. index(dir, "/") == 0) sep = "\"
     path = dir // sep // name
-  end function join_temp
+  end function join_dir
 
-  ! A fresh name in the temp directory. system_clock plus a counter
+  ! A fresh name in the chosen directory. system_clock plus a counter
   ! keeps two probes in one process apart. status='new' retries when
-  ! the name is already taken.
+  ! the name is already taken. No writable directory prints one line
+  ! on the error unit and returns an empty path.
   function probe_path(suffix) result(path)
     character(len=*), intent(in) :: suffix
-    character(len=:), allocatable :: path
+    character(len=:), allocatable :: path, dir
     character(len=48) :: token
     integer(int64) :: ticks
-    integer, save :: serial = 0
     integer :: unit, iostat, attempt
-    call system_clock(ticks)
+    dir = temp_directory()
     path = ""
+    if (len(dir) == 0) then
+      call warn_probe_directory()
+      return
+    end if
+    call system_clock(ticks)
     do attempt = 1, 100
-      serial = serial + 1
-      write(token, "(i0,'-',i0)") ticks, serial
-      path = join_temp("dseams-probe-" // trim(token) // suffix)
+      probe_serial = probe_serial + 1
+      write(token, "(i0,'-',i0)") ticks, probe_serial
+      path = join_dir(dir, "dseams-probe-" // trim(token) // suffix)
       open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
       if (iostat == 0) then
         close(unit)
@@ -1237,19 +1287,37 @@ contains
       end if
     end do
     path = ""
+    call warn_probe_directory()
   end function probe_path
 
-  ! Left in the temp directory only when DSEAMS_PROBE_STAMP=1, so a
-  ! test can see which directory the probe used. The readers test
-  ! deletes it.
+  subroutine warn_probe_directory()
+    if (probe_warned) return
+    probe_warned = .true.
+    write(error_unit, "(a)") "dseams: no writable directory for the reader probe " // &
+      "(tried TMPDIR, TEMP, TMP and the working directory)"
+    flush(error_unit)
+  end subroutine warn_probe_directory
+
+  ! Left next to the probe file only when DSEAMS_PROBE_STAMP=1, so a
+  ! test can see which directory was used. The readers test deletes it.
   subroutine write_stamp(probe)
     character(len=*), intent(in) :: probe
-    character(len=:), allocatable :: flag, stamp
-    integer :: unit, iostat
+    character(len=:), allocatable :: flag, stamp, dir
+    integer :: unit, iostat, slash, back, cut
     flag = env_string("DSEAMS_PROBE_STAMP")
     if (len(flag) == 0) return
     if (flag(1:1) /= "1") return
-    stamp = join_temp("dseams-probe-stamp")
+    slash = index(probe, "/", back=.true.)
+    back = index(probe, "\", back=.true.)
+    cut = max(slash, back)
+    if (cut <= 0) then
+      dir = "."
+    else if (cut == 1) then
+      dir = probe(1:1)
+    else
+      dir = probe(1:cut - 1)
+    end if
+    stamp = join_dir(dir, "dseams-probe-stamp")
     open(newunit=unit, file=stamp, status="replace", action="write", iostat=iostat)
     if (iostat /= 0) return
     write(unit, "(a)") probe

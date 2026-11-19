@@ -1,1 +1,1 @@
-The chemfiles and readcon probes write their file in `TMPDIR`, then `TEMP`, then `TMP`, and in the working directory when none of those is set.
+The chemfiles and readcon probes write their file in the first of `TMPDIR`, `TEMP`, `TMP` and the working directory that can be written. A missing or unwritable directory is skipped. When none can be written, the query is false and one diagnostic is printed.
