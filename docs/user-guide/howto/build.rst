@@ -14,9 +14,13 @@ fpm
    fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 
 ``fpm test`` runs ``check_dseams`` (prints ``dseams fortran ok``),
-``capi`` (prints ``fortran ok``), ``high`` (prints ``fortran high ok``)
-and ``lang_tasks``. The ice Ih line from ``lang_tasks`` is on the
-`language-task page <../../lang/task-fortran.html>`_.
+``capi`` (prints ``fortran ok``), ``high`` (prints ``fortran high ok``),
+``lang_tasks`` and ``readers``. The ice Ih line from ``lang_tasks`` is
+on the `language-task page <../../lang/task-fortran.html>`_.
+``readers`` prints ``has_chemfiles`` and ``has_readcon`` as ``T`` or
+``F``, then ``read con``, ``read pdb`` and ``read gro`` with an atom
+count, or ``skip`` for a reader the loaded libseams does not have, and
+``fortran readers ok``.
 
 ``test/test_capi.f90`` calls every ``bind(C)`` procedure in ``seams_c``
 on the 64-atom cell, then reads the fixtures under ``input/``. The
@@ -49,8 +53,13 @@ directories: ``meson setup build/meson -Dseams_libdir="$PREFIX/lib"``.
 A parent project calls ``subproject('dseams-fortran')`` and then
 ``dependency('dseams-fortran')``. The meson test names are
 ``fortran_capi``, ``fortran_check``, ``fortran_high``,
-``fortran_one_file``, ``fortran_lang_tasks``, ``fortran_cubic`` and
-``fortran_minimal``.
+``fortran_readers``, ``fortran_one_file``, ``fortran_lang_tasks``,
+``fortran_cubic`` and ``fortran_minimal``. ``-Dwith_chemfiles`` and
+``-Dwith_readcon`` (``auto``, ``enabled`` or ``disabled``) define
+``SEAMS_HAS_CHEMFILES`` and ``SEAMS_HAS_READCON`` when seams.pc already
+carries them or when the matching pkg-config file is found. They do
+not link those libraries. The feature queries do not read the macros:
+they ask the loaded libseams.
 
 One file
 --------

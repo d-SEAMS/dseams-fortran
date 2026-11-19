@@ -189,6 +189,10 @@ module seams
   public :: status_text
   !> Number of frames in a trajectory path.
   public :: path_nframes
+  !> True when the loaded libseams reads chemfiles trajectories (PDB, GRO and the other chemfiles formats).
+  public :: has_chemfiles
+  !> True when the loaded libseams reads EON CON files through readcon-core.
+  public :: has_readcon
 
   public :: assignment(=)
   interface assignment(=)
@@ -238,8 +242,17 @@ module seams
       integer(seams_int) :: nframes
     end function
 
+    !> Asks the loaded libseams, by reading a one-atom PDB it writes under `/tmp`.
+    !! The result is cached. A build of this package does not decide it.
+    module function has_chemfiles() result(yes)
+      logical :: yes
+    end function
 
-
+    !> Asks the loaded libseams, by reading a four-atom EON CON it writes under `/tmp`.
+    !! The result is cached. A build of this package does not decide it.
+    module function has_readcon() result(yes)
+      logical :: yes
+    end function
 
     !> `xyz` has shape `(3, n)`. Lengths are angstrom. The origin defaults to zero.
     module subroutine frame_set_ortho(self, xyz, lx, ly, lz, ox, oy, oz, types, ids, stat, errmsg)

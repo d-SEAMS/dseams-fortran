@@ -1,2 +1,8 @@
 option('seams_libdir', type: 'array', value: [],
   description: 'Absolute directories holding libseams and libseams_lang, searched when pkg-config does not find them')
+
+option('with_chemfiles', type: 'feature', value: 'auto',
+  description: 'Define SEAMS_HAS_CHEMFILES when chemfiles is found, unless seams.pc already defines it')
+
+option('with_readcon', type: 'feature', value: 'auto',
+  description: 'Define SEAMS_HAS_READCON when readcon-core >= 0.16.2 is found, unless seams.pc already defines it')

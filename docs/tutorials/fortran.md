@@ -64,3 +64,46 @@ The C image of `seams.h` is `seams_c`. `test/test_capi.f90` calls it.
 
 The engine manual for this binding is
 [docs.dseams.info](https://docs.dseams.info/fronts/fortran.html).
+
+## Optional readers
+
+LAMMPS dump and XYZ are always read by libseams. EON CON needs
+readcon-core in that build. PDB, GRO and the other chemfiles formats
+need chemfiles. `has_readcon` and `has_chemfiles` ask the loaded
+library, so a program can skip a file the engine was not built to read.
+
+```fortran
+program optional_readers
+  use seams
+  implicit none
+  type(seams_frame) :: frame
+  integer(seams_int) :: stat
+  character(len=:), allocatable :: err
+  if (has_readcon()) then
+    frame = new_frame()
+    call frame%read("input/eon/tiny_multi_cuh2.con", stat=stat, errmsg=err)
+    if (stat /= SEAMS_OK) error stop err
+    print "(a,i0)", "con ", frame%count()
+    call frame%close()
+  end if
+  if (has_chemfiles()) then
+    frame = new_frame()
+    call frame%read("input/pdb/one_oxygen.pdb", stat=stat, errmsg=err)
+    if (stat /= SEAMS_OK) error stop err
+    print "(a,i0)", "pdb ", frame%count()
+    call frame%close()
+    frame = new_frame()
+    call frame%read("input/gro/one_oxygen.gro", stat=stat, errmsg=err)
+    if (stat /= SEAMS_OK) error stop err
+    print "(a,i0)", "gro ", frame%count()
+    call frame%close()
+  end if
+end program optional_readers
+```
+
+`input/eon/tiny_multi_cuh2.con` is four atoms on the first frame.
+`input/pdb/one_oxygen.pdb` and `input/gro/one_oxygen.gro` are one
+oxygen each. `fpm test readers` prints `read con 4` when readcon-core
+is in the loaded libseams, and `read pdb 1` and `read gro 1` when
+chemfiles is. A false query prints `skip` for that file and the test
+still passes.

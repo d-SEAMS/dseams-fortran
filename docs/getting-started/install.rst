@@ -13,9 +13,14 @@ at tag ``v2.14.1``:
 That installs ``libseams.so``, ``libseams_lang.so`` and ``seams.pc``
 under ``$PREFIX``. Without ``-Dwith_tests=false`` the configure step
 builds the engine's own test suite and asks for libraries only it
-needs. The chemfiles, LAMMPS, GROMACS, OpenMM, PLUMED and GPU
-backends are auto-detected; ``-Dwith_chemfiles=disabled`` and the
-matching ``with_*`` options turn them off for a faster build. A meson
+needs. The chemfiles, readcon-core, LAMMPS, GROMACS, OpenMM, PLUMED
+and GPU backends are auto-detected; ``-Dwith_chemfiles=disabled``,
+``-Dwith_readcon=disabled`` and the matching ``with_*`` options turn
+them off for a faster build. Chemfiles is what makes PDB and GRO
+readable. readcon-core (lode-org/readcon-core) is what makes EON CON
+readable. LAMMPS dump and XYZ do not need either. After this package
+is linked, ``has_chemfiles()`` and ``has_readcon()`` report which of
+those two the loaded libseams actually has. A meson
 install leaves the libraries libseams loads beside it without a
 RUNPATH, so the loader also needs
 
