@@ -3,13 +3,13 @@
 #
 # Meson build of the Fortran modules, for projects that pull this
 # repository in as a subproject. fpm.toml is the other build. Both link
-# an installed libseams from seams-core tag v2.14.0, found through pkg-config
+# an installed libseams from seams-core tag v2.14.1, found through pkg-config
 # (seams.pc) or, failing that, on the linker search path and in the
 # directories named by -Dseams_libdir.
 project(
   'dseams-fortran',
   'fortran',
-  version: '2.14.0',
+  version: '2.14.1',
   license: 'MIT',
   meson_version: '>=1.1.0',
   default_options: ['warning_level=1'],

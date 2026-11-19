@@ -1,5 +1,5 @@
 name = "dseams"
-version = "2.14.0"
+version = "2.14.1"
 license = "MIT"
 author = "Rohit Goswami"
 maintainer = "rgoswami@ieee.org"
@@ -9,7 +9,7 @@ homepage = "https://dseams.info"
 categories = ["scientific"]
 keywords = ["molecular-dynamics", "ice", "clathrate", "chemistry"]
 
-# The modules bind include/seams.h from seams-core tag v2.14.0
+# The modules bind include/seams.h from seams-core tag v2.14.1
 # (d-SEAMS/seams-core) through iso_c_binding and link an installed
 # libseams of that version (meson install, conda, Nix or Spack).
 # Point fpm at it:
