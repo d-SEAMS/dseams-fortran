@@ -20,8 +20,10 @@ The C API is the
 beyond libseams. `has_readcon()` is true when that library reads EON
 CON files, and `has_chemfiles()` is true when it reads PDB, GRO and the
 other chemfiles formats. Both ask the loaded engine and cache the
-answer. A program that branches on them runs against a libseams built
-without those libraries and against one built with them.
+answer. `probe_directory()` is the directory those two calls write
+into, or empty when no candidate can be written. A program that
+branches on the queries runs against a libseams built without those
+libraries and against one built with them.
 
 ## Defaults
 

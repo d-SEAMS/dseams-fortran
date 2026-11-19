@@ -30,29 +30,29 @@ fails if it would have skipped.
 
 Chemfiles and readcon-core (lode-org/readcon-core) are detected by
 seams-core and linked into =libseams=. Copying either tree here would
-be a second implementation. Meson defines =SEAMS_HAS_CHEMFILES= or
-=SEAMS_HAS_READCON= when =seams.pc= already has the macro or when the
-matching pkg-config file is found. Those macros are informational.
-The runtime query is the mechanism. Absence of both leaves the
-Fortran build working, with LAMMPS dump and XYZ.
+be a second implementation. This package does not define
+=SEAMS_HAS_CHEMFILES= or =SEAMS_HAS_READCON= and does not read them.
+The runtime query is the mechanism. A libseams without those readers
+still builds here, with LAMMPS dump and XYZ.
 
 ** Why are towncrier and cocogitto both here?
 
 Towncrier owns =CHANGELOG.md=. Fragments live in =changelog.d/= and
 =towncrier.toml= points at that directory. Cocogitto owns the version
 commit and the =vX.Y.Z= tag. =cog.toml= sets =disable_changelog = true=
-so the two tools do not write the same file. =pre_bump_hooks= write
-the version, regenerate the copies, then run =towncrier build=.
+so the two tools do not write the same file. =pre_bump_hooks= run
+=python3 -m cogapp -I ci/version -r @ci/version/files.txt= and then
+=towncrier build --yes --version {{version}}=.
 
 ** Where is the version written by hand?
 
-=version= in =fpm.toml=. =ci/version/dseams_version.py sync= rewrites
-that line and the =version:= line of =ford.md=, and =python3 -m cogapp=
-rewrites the files in =ci/version/files.txt= (=meson.build=,
-=CITATION.cff=, =docs/conf.py=, =towncrier.toml=). Use =python3 -m cogapp=,
-not the =cog=
-binary: that binary is cocogitto. Prose that names the current tag
-(the README, the manual, =packaging/fpm/registry.toml=,
+=version= in =fpm.toml=. =python3 -m cogapp= rewrites the copies listed
+in =ci/version/files.txt= (=meson.build=, =CITATION.cff=,
+=docs/conf.py=, =towncrier.toml=, =ford.md=) by reading that line.
+There is no helper script under =ci/version/=. Use =python3 -m cogapp=,
+not the =cog= binary: that binary is cocogitto. =cog bump --version=
+is given the same string. Prose that names the current tag (the
+README, the manual, =packaging/fpm/registry.toml=,
 =examples/downstream/fpm.toml=) is updated in the release commit
 itself. The registry file keeps every older tag, so cogapp does not
 rewrite it.

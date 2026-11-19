@@ -74,17 +74,21 @@ cog check --ignore-merge-commits vPREV..HEAD
 
 ** Version copies
 
-=fpm.toml= holds the version. The bump hook runs, in order:
+=version= in =fpm.toml= is the line a person edits. Set it to =X.Y.Z=
+before the bump. =cog bump --version X.Y.Z= must be that same string.
+The bump hook runs, in order:
 
-1. =python3 ci/version/dseams_version.py sync X.Y.Z=, which rewrites the
-   =version = "..."= line of =fpm.toml= and the =version:= line of
-   =ford.md=. FORD treats a comment in the project-file front matter as
-   the end of that front matter, so =ford.md= is not a cogapp copy.
-2. =python3 -m cogapp -I ci/version -r @ci/version/files.txt=, which
-   rewrites =meson.build=, =CITATION.cff=, =docs/conf.py= and
-   =towncrier.toml=.
-3. =towncrier build --yes --version X.Y.Z=, which folds =changelog.d/=
+1. =python3 -m cogapp -I ci/version -r @ci/version/files.txt=, which
+   rewrites the copies in =ci/version/files.txt= (=meson.build=,
+   =CITATION.cff=, =docs/conf.py=, =towncrier.toml=, =ford.md=) from
+   =fpm.toml=. Each copy carries cog markers. =ci/version/= has no
+   script.
+2. =towncrier build --yes --version X.Y.Z=, which folds =changelog.d/=
    into =CHANGELOG.md= and deletes the fragments.
+
+FORD's project-file reader stops at a line that is not =key: value=.
+The cog markers in =ford.md= are written as =cog:= and =endcog:= so
+the =version:= line between them stays in the front matter.
 
 Check the copies without writing them:
 

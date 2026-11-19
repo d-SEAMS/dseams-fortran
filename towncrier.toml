@@ -1,6 +1,6 @@
 [tool.towncrier]
 name = "dseams-fortran"
-# [[[cog import dseams_version as v; cog.outl(f'version = "{v.VERSION}"')]]]
+# [[[cog import tomllib; from pathlib import Path; v = tomllib.load(Path("fpm.toml").open("rb"))["version"]; cog.outl(f'version = "{v}"')]]]
 version = "2.14.1"
 # [[[end]]]
 directory = "changelog.d"
