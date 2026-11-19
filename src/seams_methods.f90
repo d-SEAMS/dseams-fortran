@@ -218,7 +218,7 @@ contains
       key = ""
       return
     end if
-    key = copy_key(buf, int(n))
+    call copy_key(buf, int(n), key)
     ! c_loc on this buffer keeps gfortran from freeing it on return.
     deallocate(buf)
     call check_status(code, raw, stat, errmsg)
@@ -236,7 +236,7 @@ contains
   end procedure new_frame
 
   module procedure version_text
-    text = c_to_f(seams_version_string())
+    call c_to_f(seams_version_string(), text)
   end procedure version_text
 
   module procedure set_num_threads
@@ -250,11 +250,11 @@ contains
   end procedure num_threads
 
   module procedure label_name
-    text = c_to_f(seams_label_name(int(code, c_int)))
+    call c_to_f(seams_label_name(int(code, c_int)), text)
   end procedure label_name
 
   module procedure status_text
-    text = c_to_f(seams_status_string(int(code, c_int)))
+    call c_to_f(seams_status_string(int(code, c_int)), text)
   end procedure status_text
 
   module procedure path_nframes
@@ -1216,7 +1216,7 @@ contains
     logical, intent(out) :: ok
     character(len=:), allocatable :: path
     logical :: wrote
-    path = probe_path(".pdb")
+    call probe_path(".pdb", path)
     if (len(path) == 0) then
       ok = .false.
       return
@@ -1235,7 +1235,7 @@ contains
     logical, intent(out) :: ok
     character(len=:), allocatable :: path
     logical :: wrote
-    path = probe_path(".con")
+    call probe_path(".con", path)
     if (len(path) == 0) then
       ok = .false.
       return
@@ -1251,58 +1251,81 @@ contains
   end subroutine probe_readcon
 
   module procedure probe_directory
-    dir = temp_directory()
+    call temp_directory(dir)
   end procedure probe_directory
 
   ! First directory that can take a file. A set but missing or
   ! unwritable TMPDIR falls through to TEMP, then TMP, then the
   ! working directory. Empty means every candidate failed. This never
   ! assumes a Unix temp path and never calls getpid.
-  function temp_directory() result(dir)
-    character(len=:), allocatable :: dir
-    dir = usable_env("TMPDIR")
+  !
+  ! This, and every other character(len=:), allocatable helper below
+  ! it (usable_env, normalize_dir, join_dir, env_string, probe_path),
+  ! is a SUBROUTINE with an allocatable intent(out) argument, not a
+  ! FUNCTION with an allocatable result, on purpose: see
+  ! docs/orgmode/contributing/developer/faq.org and logs/f3/ for the
+  ! reproducer. gfortran 13.3.0 (this project's own CI compiler)
+  ! reliably corrupts a character(len=:), allocatable FUNCTION result
+  ! returned to a caller running concurrently with any other call,
+  ! anywhere in the process, that also returns such a result; up to
+  ! and including glibc's allocator itself aborting with "free():
+  ! invalid next size". The identical computation expressed as a
+  ! SUBROUTINE with an allocatable intent(out) argument, called the
+  ! same way under the same load, is not affected; neither is a
+  ! deferred-length allocatable CHARACTER ARRAY function result (see
+  ! f_to_c in seams_support.f90, left as a function since it does not
+  ! have this problem). This is not a defect in this package's logic:
+  ! the reproducer needs no SAVE variable, no missing "recursive", and
+  ! no shared state of any kind, only two ordinary calls to two
+  ! ordinary character(len=:), allocatable functions running on
+  ! different threads at the same moment.
+  subroutine temp_directory(dir)
+    character(len=:), allocatable, intent(out) :: dir
+    call usable_env("TMPDIR", dir)
     if (len(dir) > 0) return
-    dir = usable_env("TEMP")
+    call usable_env("TEMP", dir)
     if (len(dir) > 0) return
-    dir = usable_env("TMP")
+    call usable_env("TMP", dir)
     if (len(dir) > 0) return
     if (can_write(".")) then
       dir = "."
       return
     end if
     dir = ""
-  end function temp_directory
+  end subroutine temp_directory
 
-  function usable_env(name) result(dir)
+  subroutine usable_env(name, dir)
     character(len=*), intent(in) :: name
-    character(len=:), allocatable :: dir
-    dir = normalize_dir(env_string(name))
+    character(len=:), allocatable, intent(out) :: dir
+    character(len=:), allocatable :: raw
+    call env_string(name, raw)
+    call normalize_dir(raw, dir)
     if (len(dir) == 0) return
     if (.not. can_write(dir)) dir = ""
-  end function usable_env
+  end subroutine usable_env
 
-  function normalize_dir(raw) result(dir)
+  subroutine normalize_dir(raw, dir)
     character(len=*), intent(in) :: raw
-    character(len=:), allocatable :: dir
+    character(len=:), allocatable, intent(out) :: dir
     dir = trim(raw)
     do while (len(dir) > 1)
       if (dir(len(dir):len(dir)) /= "/" .and. dir(len(dir):len(dir)) /= "\") exit
       dir = dir(1:len(dir) - 1)
     end do
-  end function normalize_dir
+  end subroutine normalize_dir
 
   ! True when a new file can be created in dir and then removed.
   ! status="new" fails when the name already exists, so a retry with a
   ! fresh name picks a different candidate rather than reusing one
   ! that just failed. has_chemfiles and has_readcon each call this
-  ! from inside their own once-guard, so two threads never run it
-  ! for the same feature at the same time; the retry is for a
-  ! different process, or a leftover file from a previous run, using
-  ! the same name. No counter is shared between calls or threads:
-  ! every retry reads the clock again and advances a local counter
-  ! only, so a second call (from either feature, which do race with
-  ! each other on the filesystem since their once-guards are
-  ! independent) never collides with one already in flight.
+  ! from inside their own once-guard, so two threads never run it for
+  ! the same feature at the same time; the retry is for a different
+  ! process, or a leftover file from a previous run, using the same
+  ! name. No counter is shared between calls or threads: every retry
+  ! reads the clock again and advances a local counter only, so a
+  ! second call (from either feature, which do race with each other on
+  ! the filesystem since their once-guards are independent) never
+  ! collides with one already in flight.
   function can_write(dir) result(yes)
     character(len=*), intent(in) :: dir
     logical :: yes
@@ -1315,7 +1338,7 @@ contains
     do attempt = 1, 64
       call system_clock(ticks)
       write(token, "(i0,'-',i0)") ticks, attempt
-      path = join_dir(trim(dir), "dseams-probe-try-" // trim(token))
+      call join_dir(trim(dir), "dseams-probe-try-" // trim(token), path)
       open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
       if (iostat == 0) then
         close(unit, status="delete")
@@ -1325,9 +1348,9 @@ contains
     end do
   end function can_write
 
-  function env_string(name) result(value)
+  subroutine env_string(name, value)
     character(len=*), intent(in) :: name
-    character(len=:), allocatable :: value
+    character(len=:), allocatable, intent(out) :: value
     integer :: length, stat
     call get_environment_variable(name, length=length, status=stat)
     if (stat /= 0 .or. length <= 0) then
@@ -1336,11 +1359,11 @@ contains
     end if
     allocate(character(len=length) :: value)
     call get_environment_variable(name, value)
-  end function env_string
+  end subroutine env_string
 
-  function join_dir(dir, name) result(path)
+  subroutine join_dir(dir, name, path)
     character(len=*), intent(in) :: dir, name
-    character(len=:), allocatable :: path
+    character(len=:), allocatable, intent(out) :: path
     character(len=1) :: sep
     if (len(dir) == 0) then
       path = name
@@ -1353,19 +1376,20 @@ contains
     sep = "/"
     if (index(dir, "\") > 0 .and. index(dir, "/") == 0) sep = "\"
     path = dir // sep // name
-  end function join_dir
+  end subroutine join_dir
 
   ! A fresh name in the chosen directory. system_clock plus a counter
   ! keeps two probes in one process apart. status='new' retries when
   ! the name is already taken. No writable directory prints one line
   ! on the error unit and returns an empty path.
-  function probe_path(suffix) result(path)
+  subroutine probe_path(suffix, path)
     character(len=*), intent(in) :: suffix
-    character(len=:), allocatable :: path, dir
+    character(len=:), allocatable, intent(out) :: path
+    character(len=:), allocatable :: dir
     character(len=48) :: token
     integer(int64) :: ticks
     integer :: unit, iostat, attempt
-    dir = temp_directory()
+    call temp_directory(dir)
     path = ""
     if (len(dir) == 0) then
       call warn_probe_directory()
@@ -1378,7 +1402,7 @@ contains
     do attempt = 1, 100
       call system_clock(ticks)
       write(token, "(i0,'-',i0)") ticks, attempt
-      path = join_dir(dir, "dseams-probe-" // trim(token) // suffix)
+      call join_dir(dir, "dseams-probe-" // trim(token) // suffix, path)
       open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
       if (iostat == 0) then
         close(unit)
@@ -1387,7 +1411,7 @@ contains
     end do
     path = ""
     call warn_probe_directory()
-  end function probe_path
+  end subroutine probe_path
 
   ! Each once-guarded probe can call this at most once per process
   ! (there is one for chemfiles, one for readcon), so no separate
@@ -1404,7 +1428,7 @@ contains
     character(len=*), intent(in) :: probe
     character(len=:), allocatable :: flag, stamp, dir
     integer :: unit, iostat, slash, back, cut
-    flag = env_string("DSEAMS_PROBE_STAMP")
+    call env_string("DSEAMS_PROBE_STAMP", flag)
     if (len(flag) == 0) return
     if (flag(1:1) /= "1") return
     slash = index(probe, "/", back=.true.)
@@ -1417,7 +1441,7 @@ contains
     else
       dir = probe(1:cut - 1)
     end if
-    stamp = join_dir(dir, "dseams-probe-stamp")
+    call join_dir(dir, "dseams-probe-stamp", stamp)
     open(newunit=unit, file=stamp, status="replace", action="write", iostat=iostat)
     if (iostat /= 0) return
     write(unit, "(a)") probe

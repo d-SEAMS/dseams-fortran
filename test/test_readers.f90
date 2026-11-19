@@ -117,7 +117,7 @@ contains
     character(len=1024) :: buf
     integer :: unit, iostat
     logical :: ex
-    dir = probe_directory()
+    call probe_directory(dir)
     if (len(dir) == 0) stop 6
     tmp = env_raw("TMPDIR")
     if (len(tmp) > 0) then

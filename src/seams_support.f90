@@ -109,9 +109,18 @@ contains
   end function handle_get
 
   !> Copy a C string. A null pointer becomes an empty Fortran string.
-  function c_to_f(ptr) result(text)
+  !!
+  !! A SUBROUTINE with an allocatable intent(out) argument, not a
+  !! FUNCTION returning allocatable character(len=:), on purpose: see
+  !! the comment on temp_directory in seams_methods.f90 for the
+  !! gfortran 13.3.0 defect this avoids. c_to_f backs version_text,
+  !! label_name, status_text and check_status's error message, all of
+  !! which a caller can reach from more than one thread at once (on
+  !! different handles, or not needing a handle at all), so this is
+  !! not only the probe's problem.
+  subroutine c_to_f(ptr, text)
     type(c_ptr), intent(in) :: ptr
-    character(len=:), allocatable :: text
+    character(len=:), allocatable, intent(out) :: text
     character(kind=c_char), pointer :: chars(:)
     integer :: i, n
     if (.not. c_associated(ptr)) then
@@ -125,7 +134,7 @@ contains
     do i = 1, n
       text(i:i) = chars(i)
     end do
-  end function c_to_f
+  end subroutine c_to_f
 
   !> NUL-terminated copy of a Fortran string.
   function f_to_c(text) result(buf)
@@ -141,16 +150,19 @@ contains
   end function f_to_c
 
   !> Turn a queried C buffer into a Fortran string of length `n`.
-  function copy_key(buf, n) result(text)
+  !!
+  !! A SUBROUTINE with an allocatable intent(out) argument, for the
+  !! same reason c_to_f above is one.
+  subroutine copy_key(buf, n, text)
     character(kind=c_char), intent(in) :: buf(:)
     integer, intent(in) :: n
-    character(len=:), allocatable :: text
+    character(len=:), allocatable, intent(out) :: text
     integer :: i
     allocate(character(len=n) :: text)
     do i = 1, n
       text(i:i) = buf(i)
     end do
-  end function copy_key
+  end subroutine copy_key
 
   !> Intrinsic-style status. With neither `stat` nor `errmsg`, a failure stops.
   !!
@@ -172,9 +184,9 @@ contains
     if (present(detail)) then
       message = detail
     else if (c_associated(handle)) then
-      message = c_to_f(seams_handle_error(handle))
+      call c_to_f(seams_handle_error(handle), message)
     else
-      message = c_to_f(seams_last_error())
+      call c_to_f(seams_last_error(), message)
     end if
     if (len(message) == 0) message = "seams call failed"
     if (present(stat)) stat = code

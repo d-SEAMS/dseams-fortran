@@ -130,6 +130,47 @@ checks every one agrees with a single-threaded call made before any
 thread started; it has run five hundred times in a row on gfortran and
 on flang, with zero failures.
 
+** Why are temp_directory, join_dir and friends subroutines, not functions?
+
+=temp_directory=, =usable_env=, =normalize_dir=, =join_dir=,
+=env_string= and =probe_path= in =src/seams_methods.f90=, and
+=c_to_f= and =copy_key= in =src/seams_support.f90=, each take an
+allocatable =intent(out)= argument and return nothing, rather than
+returning a =character(len=:), allocatable= function result the way
+they read most naturally. That shape is deliberate, not a style
+choice: on this project's own CI compiler, gfortran 13.3.0, a
+=character(len=:), allocatable= FUNCTION result is not safe to return
+to a caller that is running concurrently, on another thread, with any
+other call anywhere in the process that also returns such a result.
+
+A minimal reproducer needs no =SAVE= variable, no missing =recursive=,
+and no shared state of any kind: two ordinary functions, each doing
+nothing but assign one string literal to its allocatable result, run
+from sixteen real POSIX threads (no OpenMP) with no synchronisation
+between them, corrupt each other's results at a small but repeatable
+rate, up to and including glibc's own allocator aborting with
+"free(): invalid next size". The identical computation, expressed as a
+SUBROUTINE with an allocatable =intent(out)= argument instead of a
+function result, called under the same load, is not affected. Nor is
+a deferred-length allocatable CHARACTER ARRAY function result; see
+=f_to_c= in =src/seams_support.f90=, left as a function, and
+=logs/f3/= in a released verification kit for the full reproducer
+suite and its output.
+
+This explains why an earlier revision's fixed-length, non-allocatable
+buffer workaround for the probe's own lock-directory resolution
+(=lock_env_dir=/=try_lock_in=) is gone rather than kept: once the
+underlying helpers are subroutines with allocatable arguments instead
+of functions with allocatable results, they do not need a fixed-size
+buffer to avoid the defect, because the subroutine shape already does
+that, and they no longer need a filesystem lock to avoid it either, by
+the C11 once-guard explained above. =probe_directory= is public API
+that calls straight into =temp_directory= with no once-guard of its
+own (unlike =has_chemfiles=/=has_readcon=, since it has to report a
+fresh answer on every call, not a cached one), so it is a subroutine
+with an allocatable =intent(out)= argument for the same reason, not a
+function: see =src/seams.f90=.
+
 ** Why is the readers test allowed to skip?
 
 A checkout tested against the CI libseams that passes

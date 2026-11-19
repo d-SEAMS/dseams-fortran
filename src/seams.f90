@@ -248,11 +248,12 @@ module seams
     !! first of `TMPDIR`, `TEMP`, `TMP` and the working directory that can
     !! be written. A missing or unwritable directory is skipped. When none
     !! can be written, the query is false and one diagnostic is printed.
-    !! The probe runs once per process, behind a POSIX `pthread_once`,
-    !! then its answer is cached; every caller but the one that runs it
-    !! blocks until it finishes, so concurrent calls from different
-    !! threads never race. A build of this package does not decide the
-    !! answer.
+    !! The probe runs once per process, behind an in-process once-guard
+    !! (a C11 `<stdatomic.h>` compare-and-swap, no lock file and no OS
+    !! mutex), then its answer is cached; every caller but the one that
+    !! runs it blocks until it finishes, so concurrent calls from
+    !! different threads never race. A build of this package does not
+    !! decide the answer.
     module function has_chemfiles() result(yes)
       logical :: yes
     end function
@@ -261,21 +262,24 @@ module seams
     !! the first of `TMPDIR`, `TEMP`, `TMP` and the working directory that
     !! can be written. A missing or unwritable directory is skipped. When
     !! none can be written, the query is false and one diagnostic is printed.
-    !! The probe runs once per process, behind a POSIX `pthread_once`,
-    !! then its answer is cached; every caller but the one that runs it
-    !! blocks until it finishes, so concurrent calls from different
-    !! threads never race. A build of this package does not decide the
-    !! answer.
+    !! The probe runs once per process, behind an in-process once-guard
+    !! (a C11 `<stdatomic.h>` compare-and-swap, no lock file and no OS
+    !! mutex), then its answer is cached; every caller but the one that
+    !! runs it blocks until it finishes, so concurrent calls from
+    !! different threads never race. A build of this package does not
+    !! decide the answer.
     module function has_readcon() result(yes)
       logical :: yes
     end function
 
     !> The directory `has_chemfiles` and `has_readcon` write into.
     !! Empty when `TMPDIR`, `TEMP`, `TMP` and the working directory are
-    !! all missing or unwritable.
-    module function probe_directory() result(dir)
-      character(len=:), allocatable :: dir
-    end function
+    !! all missing or unwritable. A subroutine, not a function returning
+    !! an allocatable `character`, on purpose: see the comment on
+    !! `temp_directory` in `seams_methods.f90`.
+    module subroutine probe_directory(dir)
+      character(len=:), allocatable, intent(out) :: dir
+    end subroutine
 
     !> `xyz` has shape `(3, n)`. Lengths are angstrom. The origin defaults to zero.
     module subroutine frame_set_ortho(self, xyz, lx, ly, lz, ox, oy, oz, types, ids, stat, errmsg)

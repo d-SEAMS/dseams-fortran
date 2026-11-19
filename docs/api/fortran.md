@@ -25,10 +25,12 @@ either is called, behind an in-process once-guard (a C11
 OS mutex, nothing a shared `/tmp` exposes to another user), and cache
 the answer; concurrent calls from different threads never race,
 because every caller but the one that runs the probe blocks until it
-finishes. `probe_directory()` is the directory those two calls write
-into, or empty when no candidate can be written. A program that
-branches on the queries runs against a libseams built without those
-libraries and against one built with them.
+finishes. `probe_directory(dir)` reports the directory those two calls
+write into, or an empty `dir` when no candidate can be written; it is a
+subroutine with an `intent(out)` argument, not a function, for the
+same reason given on `temp_directory` in `src/seams_methods.f90`. A
+program that branches on the queries runs against a libseams built
+without those libraries and against one built with them.
 
 ## Defaults
 

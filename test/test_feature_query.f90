@@ -14,7 +14,7 @@ program test_feature_query
 
   chem = has_chemfiles()
   rcon = has_readcon()
-  dir = probe_directory()
+  call probe_directory(dir)
 
   mark = "F"
   if (chem) mark = "T"

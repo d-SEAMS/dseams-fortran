@@ -30,7 +30,7 @@ program test_no_lock_symlink
   logical :: chem, rcon, ex
   character(len=32) :: suffix
 
-  dir = probe_directory()
+  call probe_directory(dir)
   if (len(dir) == 0) then
     print "(a)", "no writable probe directory; skipping the symlink check"
     print "(a)", "fortran no lock symlink ok"
