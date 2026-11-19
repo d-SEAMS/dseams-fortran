@@ -1,0 +1,7 @@
+# Copies of the release version, generated from version in fpm.toml
+# by ci/version/dseams_version.py.
+# Regenerate: python3 -m cogapp -I ci/version -r @ci/version/files.txt
+meson.build
+CITATION.cff
+docs/conf.py
+towncrier.toml

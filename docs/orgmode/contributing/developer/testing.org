@@ -1,0 +1,85 @@
+#+TITLE: Testing
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Testing
+
+** fpm
+
+From the repository root, with =libseams= and =libseams_lang= on
+=FPM_LDFLAGS= and =LD_LIBRARY_PATH=:
+
+#+begin_src bash
+export OMP_NUM_THREADS=1
+fpm test
+fpm run --example cubic
+fpm run --example minimal -- input/traj/genice_sI.lammpstrj
+(cd examples/downstream && fpm run)
+#+end_src
+
+=fpm test= runs =check_dseams=, =capi=, =high=, =lang_tasks= and =readers=.
+The first four print =dseams fortran ok=, =fortran ok=, =fortran high ok=
+and the =lang_tasks= census. =readers= prints =has_chemfiles= and
+=has_readcon= as =T= or =F=, then either =read con=, =read pdb= and
+=read gro= with an atom count or =skip= for that file, and
+=fortran readers ok=.
+
+The CON read runs only when =has_readcon= is true. The PDB and GRO reads
+run only when =has_chemfiles= is true. Nothing else gates them. The
+fixtures are =input/eon/tiny_multi_cuh2.con= (4 atoms on frame 1),
+=input/pdb/one_oxygen.pdb= (1 atom) and =input/gro/one_oxygen.gro= (1 atom).
+
+** Meson
+
+#+begin_src bash
+meson setup build/meson -Dseams_libdir="$PREFIX/lib"
+meson test -C build/meson --print-errorlogs
+#+end_src
+
+Eight tests: =fortran_capi=, =fortran_check=, =fortran_high=,
+=fortran_readers=, =fortran_one_file=, =fortran_lang_tasks=,
+=fortran_cubic=, =fortran_minimal=. The one-file test compiles the root
+=seams.f90=, which includes every module.
+
+=-Dwith_chemfiles= and =-Dwith_readcon= take =auto=, =enabled= or
+=disabled=. =auto= leaves the build working when the library is absent.
+=enabled= fails configuration when neither =seams.pc= nor the library's
+own pkg-config file provides the macro. The macros are
+=-DSEAMS_HAS_CHEMFILES= and =-DSEAMS_HAS_READCON=. The Fortran library
+does not link =libchemfiles= or =libreadcon_core=; =libseams= already
+does when it was built with them.
+
+** A job that must not skip
+
+Set =DSEAMS_REQUIRE_READERS=1= in the environment of =fpm test= and
+=meson test=. =test/test_readers.f90= then stops unless both queries are
+true. The readers job in =.github/workflows/ci.yml= builds seams-core
+with =-Dwith_chemfiles=enabled -Dwith_readcon=enabled=, sets that
+variable, and greps the log for =has_chemfiles T=, =has_readcon T=,
+=read con 4=, =read pdb 1= and =read gro 1=. The existing =test= job
+does not set the variable, so a libseams without chemfiles still passes
+by skipping PDB and GRO.
+
+** Documentation build
+
+#+begin_src bash
+ford ford.md
+python3 docs/check_api_coverage.py build/ford
+sphinx-build -W -b html docs build/html
+python3 docs/assemble_site.py build/html build/ford
+python3 docs/check_site.py build/html
+python3 docs/seo.py --check build/html
+#+end_src
+
+A new public name in =seams=, =seams_c= or =seams_kinds= needs a FORD
+comment. =docs/check_api_coverage.py= fails the build when the page is
+missing. =seams_support= is excluded.
+
+** Registry data, without uploading
+
+#+begin_src bash
+fpm build --dump fpm_model.json
+fpm publish --show-upload-data
+#+end_src
+
+=--show-upload-data= prints the manifest. It does not publish.
