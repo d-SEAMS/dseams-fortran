@@ -1,13 +1,13 @@
 ! Copyright (c) d-SEAMS developers
-! has_chemfiles and has_readcon each run their probe behind a
-! pthread_once (see src/seams_methods.f90 and
-! docs/orgmode/contributing/developer/faq.org). This spawns real POSIX
-! threads through iso_c_binding, calls both queries from every one of
-! them at once, and checks that every thread saw the same answer as a
-! single-threaded baseline call made before any thread started. Each
-! thread writes only into the one result slot its caller gave it, so
-! the check itself adds no shared mutable state for the functions
-! under test to race on.
+! has_chemfiles and has_readcon each run their probe behind an
+! in-process once-guard (see src/seams_methods.f90, src/dseams_once.c
+! and docs/orgmode/contributing/developer/faq.org). This spawns real
+! POSIX threads through iso_c_binding, calls both queries from every
+! one of them at once, and checks that every thread saw the same
+! answer as a single-threaded baseline call made before any thread
+! started. Each thread writes only into the one result slot its
+! caller gave it, so the check itself adds no shared mutable state for
+! the functions under test to race on.
 module dseams_thread_probe
   use, intrinsic :: iso_c_binding, only: c_ptr, c_int, c_null_ptr, c_f_pointer
   use seams, only: has_chemfiles, has_readcon

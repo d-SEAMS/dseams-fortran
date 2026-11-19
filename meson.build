@@ -8,7 +8,7 @@
 # directories named by -Dseams_libdir.
 project(
   'dseams-fortran',
-  'fortran',
+  'fortran', 'c',
   # [[[cog import tomllib; from pathlib import Path; v = tomllib.load(Path("fpm.toml").open("rb"))["version"]; cog.outl(f"  version: '{v}',")]]]
   version: '2.14.1',
   # [[[end]]]
@@ -40,21 +40,31 @@ fortran_lib_src = files(
   'src/seams_methods.f90',
 )
 
-# has_chemfiles and has_readcon each run their probe behind a
-# pthread_once, so the library itself needs pthread, not just the
-# thread_safety test.
-threads_dep = dependency('threads')
+# has_chemfiles and has_readcon each run their probe behind an
+# in-process once-guard, a C11 stdatomic.h compare-and-swap with no
+# lock file and no OS mutex, not a pthread_once: the library itself
+# links no pthread symbol. Only the thread_safety test, which spawns
+# real pthreads to exercise the guard, needs dependency('threads').
+# This is its own static_library, not a source file of dseams_lib
+# directly, so the one-file build below (which compiles seams.f90
+# through a separate custom_target, not dseams_lib) can link it too.
+once_guard_lib = static_library(
+  'dseams_once',
+  files('src/dseams_once.c'),
+  pic: true,
+)
 
 dseams_lib = static_library(
   'dseams_fortran',
   fortran_lib_src,
-  dependencies: [seams_dep, threads_dep],
+  link_with: once_guard_lib,
+  dependencies: [seams_dep],
   pic: true,
 )
 dseams_fortran_dep = declare_dependency(
-  link_with: dseams_lib,
+  link_with: [dseams_lib, once_guard_lib],
   include_directories: dseams_lib.private_dir_include(),
-  dependencies: [seams_dep, threads_dep],
+  dependencies: [seams_dep],
 )
 meson.override_dependency('dseams-fortran', dseams_fortran_dep)
 
@@ -71,10 +81,19 @@ if not meson.is_subproject()
   )
   test('fortran_capi', capi, args: [root], env: fortran_env, timeout: 180)
 
+  # link_language: 'fortran' on every executable below that links
+  # dseams_fortran_dep (or once_guard_lib directly, for one_file further
+  # down): once a C object (once_guard_lib) is anywhere in an
+  # executable's link, meson's default link-language choice can pick
+  # the C driver instead of the Fortran one for the final link, which
+  # drops the Fortran runtime. gfortran's C and Fortran drivers both
+  # pull in libgfortran regardless, so this only shows up as a link
+  # failure (missing _FortranAio*/_FortranA* symbols) with flang-new.
   check = executable(
     'test_fortran_check',
     files('test/check_dseams.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test('fortran_check', check, env: fortran_env, timeout: 180)
 
@@ -82,6 +101,7 @@ if not meson.is_subproject()
     'test_fortran_high',
     files('test/test_high.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test('fortran_high', high, args: [root], env: fortran_env, timeout: 180)
 
@@ -89,6 +109,7 @@ if not meson.is_subproject()
     'test_fortran_readers',
     files('test/test_readers.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test('fortran_readers', readers, args: [root], env: fortran_env, timeout: 180)
 
@@ -96,6 +117,7 @@ if not meson.is_subproject()
     'test_fortran_feature_query',
     files('test/test_feature_query.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test('fortran_feature_query', feature_query, env: fortran_env, timeout: 180)
 
@@ -103,8 +125,17 @@ if not meson.is_subproject()
     'test_fortran_thread_safety',
     files('test/test_thread_safety.f90'),
     dependencies: [dseams_fortran_dep, dependency('threads')],
+    link_language: 'fortran',
   )
   test('fortran_thread_safety', thread_safety, env: fortran_env, timeout: 180)
+
+  no_lock_symlink = executable(
+    'test_fortran_no_lock_symlink',
+    files('test/test_no_lock_symlink.f90'),
+    dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
+  )
+  test('fortran_no_lock_symlink', no_lock_symlink, env: fortran_env, timeout: 180)
 
   # The probe uses the first writable directory among TMPDIR, TEMP, TMP
   # and the working directory. A bogus TMPDIR falls through, so a capable
@@ -154,7 +185,9 @@ if not meson.is_subproject()
     'test_fortran_one_file',
     files('test/test_high.f90'),
     one_file_obj,
-    dependencies: [seams_dep, threads_dep],
+    link_with: once_guard_lib,
+    dependencies: [seams_dep],
+    link_language: 'fortran',
   )
   test('fortran_one_file', one_file, args: [root], env: fortran_env, timeout: 180)
 
@@ -178,6 +211,7 @@ if not meson.is_subproject()
     'fortran_cubic',
     files('example/cubic.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test('fortran_cubic', cubic, env: fortran_env, timeout: 180)
 
@@ -185,6 +219,7 @@ if not meson.is_subproject()
     'fortran_minimal',
     files('example/minimal.f90'),
     dependencies: dseams_fortran_dep,
+    link_language: 'fortran',
   )
   test(
     'fortran_minimal',

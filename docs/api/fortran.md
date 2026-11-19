@@ -20,11 +20,13 @@ The C API is the
 beyond libseams. `has_readcon()` is true when that library reads EON
 CON files, and `has_chemfiles()` is true when it reads PDB, GRO and the
 other chemfiles formats. Both ask the loaded engine the first time
-either is called, behind a POSIX `pthread_once`, and cache the answer;
-concurrent calls from different threads never race, because every
-caller but the one that runs the probe blocks until it finishes.
-`probe_directory()` is the directory those two calls write into, or
-empty when no candidate can be written. A program that
+either is called, behind an in-process once-guard (a C11
+`<stdatomic.h>` compare-and-swap, `src/dseams_once.c`; no lock file, no
+OS mutex, nothing a shared `/tmp` exposes to another user), and cache
+the answer; concurrent calls from different threads never race,
+because every caller but the one that runs the probe blocks until it
+finishes. `probe_directory()` is the directory those two calls write
+into, or empty when no candidate can be written. A program that
 branches on the queries runs against a libseams built without those
 libraries and against one built with them.
 

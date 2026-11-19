@@ -29,7 +29,7 @@ language-front ABI (`libseams_lang`) live in
 | `src/seams_support.f90` | Reference-counted handle box; not public API |
 | `src/seams.f90`, `src/seams_methods.f90` | `seams`, the derived-type API, and its submodule |
 | `seams.f90` | Includes every `src/` file in order, for a one-file build. fpm and meson must not compile it with `src/` |
-| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90`, `test_readers.f90`, `test_feature_query.f90`, `test_thread_safety.f90` |
+| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90`, `test_readers.f90`, `test_feature_query.f90`, `test_thread_safety.f90`, `test_no_lock_symlink.f90` |
 | `example/` | `cubic.f90` and `minimal.f90`, run as fpm examples and meson tests |
 | `examples/downstream/` | A separate fpm project with a path dependency on this one |
 | `input/` | Trajectories the tests read, copied from seams-core |
@@ -42,8 +42,15 @@ language-front ABI (`libseams_lang`) live in
 
 ## How the build finds libseams
 
-Neither build compiles C or C++. Both link `-lseams`, and the `lang_tasks`
-test also links `-lseams_lang`.
+Neither build compiles the engine's C or C++. Both link `-lseams`, and the
+`lang_tasks` test also links `-lseams_lang`. The one exception is
+`src/dseams_once.c`: a few lines of `<stdatomic.h>`, owned by this
+repository, not vendored from seams-core, giving the probe's once-guard
+(`has_chemfiles`/`has_readcon`, `src/seams_methods.f90`) an in-process
+compare-and-swap with no OS-specific static initializer and no lock file.
+Both fpm (which picks up a `.c` file placed in `src/` on its own) and
+meson (`add_languages('c')`, a small `static_library` the Fortran library
+links) compile it.
 
 - fpm: `FPM_LDFLAGS` carries the search path and the rpath. With an
   installed prefix,
@@ -101,7 +108,10 @@ against a `seams.mod` from before `has_chemfiles` existed.
 `thread_safety` spawns sixteen POSIX threads that all call
 `has_chemfiles` and `has_readcon` at once and prints `fortran thread
 safety ok` once every thread agrees with a single-threaded baseline.
-Meson runs thirteen tests, including the one-file build of `seams.f90`
+`no_lock_symlink` plants a symlink at the once-guard's old lock-file
+name, pointing at a file with known content, runs the real probe, and
+checks that file is untouched, printing `fortran no lock symlink ok`.
+Meson runs fourteen tests, including the one-file build of `seams.f90`
 and three `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
 
 Every check must pass before a change is called done. Fix the code under

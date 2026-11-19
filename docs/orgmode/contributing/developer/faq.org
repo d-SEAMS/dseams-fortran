@@ -21,7 +21,8 @@ guarantee that gives a concurrent caller.
 
 ** Are has_chemfiles and has_readcon safe to call from more than one thread?
 
-Yes. The probe behind each one runs behind a POSIX =pthread_once=, so
+Yes. The probe behind each one runs behind an in-process once-guard
+(=dseams_once_enter=/=dseams_once_done= in =src/dseams_once.c=), so
 only one caller ever runs it and every other caller, including every
 thread that called at the same moment, blocks until that run finishes.
 
@@ -48,33 +49,86 @@ comment block on that plain build, so a caller who never set those
 would still race, with no sign anything had been "protected". That is
 a silent fallback, which this project does not ship.
 
-=pthread_once= is the POSIX primitive built for exactly this: run an
-init routine exactly once, no matter how many threads call
-=pthread_once= concurrently, and block every caller, including the
-ones that lose the race to run it, until that one run returns. It is
-bound in =src/seams_methods.f90= through =iso_c_binding= and
-=bind(c, name="pthread_once")=, the same way =test/test_thread_safety.f90=
-binds =pthread_create=. =fpm.toml='s top-level =link = ["seams", "pthread"]=
-and =meson.build='s =dependency('threads')= on the library target (not
-only the test) link it unconditionally, with no compiler flag to omit.
+** Why a C11 once-guard, and not pthread_once or a lock file?
 
-The once-control itself needs no runtime setup, which matters because
-setting one up would just move the race: a Fortran =integer(c_int),
-save, target= initialised to 0 is a compile-time constant, placed in
-the binary before any thread starts, and on the glibc this project's
-CI links against, an all-zero =pthread_once_t= is byte-for-byte
-=PTHREAD_ONCE_INIT=. That is a property of this glibc, checked against
-its =<pthread.h>=, not a POSIX guarantee for every platform.
+Two earlier revisions of this fix, in order, tried the two obvious
+POSIX primitives and rejected both.
+
+The first used =pthread_once=: the POSIX primitive built for exactly
+this, running an init routine exactly once no matter how many threads
+call it concurrently, and blocking every caller, including the ones
+that lose the race to run it, until that one run returns. Its
+once-control needs no runtime setup, which matters because setting one
+up would just move the race: a Fortran =integer(c_int), save, target=
+initialised to 0 is a compile-time constant, and on the glibc this
+project's CI links against, an all-zero =pthread_once_t= is byte for
+byte =PTHREAD_ONCE_INIT=. That equality is a property of this one
+glibc, checked against its own =<pthread.h>=, not a POSIX guarantee for
+every platform, and false on macOS on purpose: Darwin's
+=PTHREAD_ONCE_INIT=, like its mutex and rwlock initializers, is a
+non-zero signature word, specifically so that a zero-initialised,
+never-set-up instance is invalid rather than silently working.
+
+The second revision serialised the probe behind an exclusive
+=flock(2)= on a file from a live =creat(2)= call instead, reasoning
+that a file descriptor is a plain integer the kernel hands back, not a
+static struct with a vendor-chosen byte pattern, so there would be
+nothing platform-specific left to get wrong. That traded one real
+problem for a worse one: =creat(2)= follows a symlink and truncates
+its target (=O_TRUNC=), and the path it opened, a fixed name,
+=dseams-probe.lock=, in the first writable directory of =TMPDIR=,
+=TEMP=, =TMP= or the working directory, was predictable and never
+unlinked. In a shared, world-writable =/tmp=, a second, unrelated
+user on the same machine could plant a symlink at that exact name
+ahead of time, pointing at any file they wanted truncated, and the
+next run of this process would do it for them, no privilege escalation
+needed beyond write access to a world-writable directory every user
+already has. =test/test_no_lock_symlink.f90= is a regression test for
+exactly that: it plants a symlink at the old name, pointing at a file
+with known content, runs the real probe, and checks that file is
+untouched.
+
+Neither primitive was ever answering a real need, which both earlier
+revisions missed: the cached answer (=chem_cached=/=con_cached= in
+=src/seams_methods.f90=) is a plain Fortran module variable, private to
+one process's address space, and =probe_path= names its trial file
+from =system_clock= plus a per-attempt counter, unique to the run that
+picked it; any number of unrelated processes sharing the same
+directory, probing at the same moment, never collide on that name. The
+race this guards against, and the one =test/test_thread_safety.f90=
+exercises, is entirely a same-process, multiple-thread race. No two
+processes coordinating through a shared file, the one thing a
+cross-process primitive like =flock= is for, were ever part of the
+problem.
+
+What this package ships instead, in =src/dseams_once.c=, is a plain
+in-process compare-and-swap on a C11 =<stdatomic.h>= =atomic_int=:
+three states, 0 untouched, 1 one thread is running the guarded
+section, 2 done, with every other caller spinning on an atomic load
+until it sees 2. =<stdatomic.h>= is a compiler feature, not an OS
+primitive, so there is no vendor-chosen static initializer to get
+wrong (contrast =PTHREAD_ONCE_INIT= above) and no OS header to link
+against on a target that lacks one (contrast =flock=, a BSD extension
+present on Linux and macOS but absent from a native Windows ABI). GCC,
+Clang (including Apple Clang) and MSVC (from Visual Studio 2022) all
+implement it. C11's =<threads.h>= =call_once= was deliberately not
+used instead, despite doing almost exactly this: Apple's libc has
+never implemented C11 =<threads.h>=, and MSVC's support for it is
+recent and inconsistent, where =<stdatomic.h>= support is not. Neither
+=fpm.toml= nor =meson.build= links =pthread= into the library any
+more; only =test/test_thread_safety.f90=, which spawns real POSIX
+threads to exercise this, still does, through its own
+=link = ["pthread"]= stanza.
 
 Once a feature's probe has run, its answer is cached in a module
-variable, same as before; only the single =pthread_once=-guarded run
-writes it, and =pthread_once= itself is what makes that write visible
-to every later caller without a separate lock. =test/test_thread_safety.f90=
-spawns sixteen POSIX threads that call both queries at once through
-=iso_c_binding= and checks every one agrees with a single-threaded
-call made before any thread started; it was run several hundred times
-in a row with this fix, with zero failures, after the stateless
-version alone failed intermittently under the same load.
+variable, same as before; only the single guarded run writes it, and
+the guard's release, a C11 release-store observed by an acquire-load,
+is what makes that write visible to every later caller without a
+separate lock. =test/test_thread_safety.f90= spawns sixteen POSIX
+threads that call both queries at once through =iso_c_binding= and
+checks every one agrees with a single-threaded call made before any
+thread started; it has run five hundred times in a row on gfortran and
+on flang, with zero failures.
 
 ** Why is the readers test allowed to skip?
 

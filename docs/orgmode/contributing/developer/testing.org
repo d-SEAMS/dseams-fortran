@@ -18,8 +18,8 @@ fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 #+end_src
 
 =fpm test= runs =check_dseams=, =capi=, =high=, =lang_tasks=, =readers=,
-=feature_query= and =thread_safety=. The first four print
-=dseams fortran ok=, =fortran ok=, =fortran high ok= and the
+=feature_query=, =thread_safety= and =no_lock_symlink=. The first four
+print =dseams fortran ok=, =fortran ok=, =fortran high ok= and the
 =lang_tasks= census. =readers= prints =has_chemfiles= and
 =has_readcon= as =T= or =F=, then either =read con=, =read pdb= and
 =read gro= with an atom count or =skip= for that file, and
@@ -29,9 +29,15 @@ trajectory; it exists to fail a build against a =seams.mod= from
 before those three were public, and prints =fortran feature query ok=.
 =thread_safety= calls =has_chemfiles= and =has_readcon= from sixteen
 POSIX threads at once (through =iso_c_binding= and =pthread_create=,
-linked with =link = ["pthread"]= in =fpm.toml=) and prints
-=fortran thread safety ok= once every thread's answer matches a
-single-threaded call made before any thread started.
+linked with =link = ["pthread"]= on the =thread_safety= test alone in
+=fpm.toml=, not on the library) and prints =fortran thread safety ok=
+once every thread's answer matches a single-threaded call made before
+any thread started. =no_lock_symlink= plants a symlink named
+=dseams-probe.lock=, an old, no longer used lock-file name, next to a
+file with known content, in the directory =probe_directory= reports,
+then runs =has_chemfiles= and =has_readcon= and checks that file is
+unchanged, printing =fortran no lock symlink ok=; see
+=docs/orgmode/contributing/developer/faq.org=.
 
 The CON read runs only when =has_readcon= is true. The PDB and GRO reads
 run only when =has_chemfiles= is true. Nothing else gates them. The
@@ -45,11 +51,12 @@ meson setup build/meson -Dseams_libdir="$PREFIX/lib"
 meson test -C build/meson --print-errorlogs
 #+end_src
 
-Thirteen tests: =fortran_capi=, =fortran_check=, =fortran_high=,
+Fourteen tests: =fortran_capi=, =fortran_check=, =fortran_high=,
 =fortran_readers=, =fortran_readers_tmpdir=,
 =fortran_readers_tmpdir_absent=, =fortran_readers_cwd=,
-=fortran_feature_query=, =fortran_thread_safety=, =fortran_one_file=,
-=fortran_lang_tasks=, =fortran_cubic=, =fortran_minimal=.
+=fortran_feature_query=, =fortran_thread_safety=,
+=fortran_no_lock_symlink=, =fortran_one_file=, =fortran_lang_tasks=,
+=fortran_cubic=, =fortran_minimal=.
 =fortran_readers_tmpdir= sets =TMPDIR= to a
 directory in the build tree and checks the probe file landed there.
 =fortran_readers_tmpdir_absent= sets =TMPDIR= to a path that does not
