@@ -1,0 +1,1 @@
+`has_chemfiles` and `has_readcon` each run their probe behind a POSIX `pthread_once` and cache the answer. Every caller but the one that runs the probe now blocks until it finishes, so concurrent calls from different threads never race; the earlier cache was a plain module-level pair with no ordering guarantee between its two writes.

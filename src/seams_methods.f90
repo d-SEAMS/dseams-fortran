@@ -1,6 +1,7 @@
 ! Copyright (c) d-SEAMS developers
 submodule (seams) seams_methods
   use, intrinsic :: iso_fortran_env, only: int64, error_unit
+  use, intrinsic :: iso_c_binding, only: c_funptr, c_funloc
   use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char
   use seams_c, only: seams_version_string, seams_label_name, seams_status_string, &
     seams_set_num_threads, seams_get_num_threads, seams_system_create, &
@@ -18,16 +19,51 @@ submodule (seams) seams_methods
     c_to_f, f_to_c, check_status, copy_key, kind_system, kind_neighbours, kind_rings, &
     kind_cages, kind_topo, kind_brine
   implicit none
-  ! Cached answers of the reader probes. The loaded libseams is the source
-  ! of truth: fpm never sees seams.pc, and this package does not compile
-  ! in SEAMS_HAS_* macros. The probe file goes in the first of
-  ! TMPDIR, TEMP, TMP and the working directory that can be written.
-  logical, save :: chem_known = .false.
-  logical, save :: chem_value = .false.
-  logical, save :: con_known = .false.
-  logical, save :: con_value = .false.
-  logical, save :: probe_warned = .false.
-  integer, save :: probe_serial = 0
+
+  ! has_chemfiles and has_readcon used to cache their answer in a
+  ! logical/logical pair ("known"/"value"), set by whichever caller ran
+  ! the probe first. Two threads racing that first call could
+  ! interleave the writes to "known" and "value" with no ordering
+  ! guarantee between them, so a second caller could read a "known"
+  ! that is true and a "value" that is still its unset default.
+  !
+  ! Computing the answer fresh on every call, with no shared state at
+  ! all, does not fix this on its own: has_chemfiles and has_readcon
+  ! both end by calling frame%read, which this package does not control
+  ! and does not know to be safe to call from more than one thread at
+  ! once. Sixteen threads probing at the same time, with no caching,
+  ! reproduced exactly that: one caller's probe reported false while
+  ! every other caller, running at the same moment, reported true.
+  !
+  ! pthread_once is the fix: it runs its init routine exactly once
+  ! across however many threads call it concurrently, and every caller,
+  ! including the ones that lose the race to run it, blocks until that
+  ! one run finishes before pthread_once returns to any of them. The
+  ! probe (and the one call into frame%read it needs) therefore only
+  ! ever runs once per process, from one thread, with every other
+  ! caller waiting rather than probing at the same time. The result is
+  ! cached afterwards, same as before, but the write that sets it now
+  ! happens inside that single run instead of racing.
+  !
+  ! pthread_once_t is an int on Linux glibc, and PTHREAD_ONCE_INIT is
+  ! all-zero bytes there (checked against <pthread.h> for the glibc on
+  ! the CI image; not a POSIX guarantee for every platform). A
+  ! Fortran integer(c_int) initialised to 0 and declared save matches
+  ! that without a runtime call to set it up, so there is no "first
+  ! call sets up the once-control" step left to race on either.
+  integer(c_int), save, target :: chem_once = 0_c_int
+  integer(c_int), save, target :: con_once = 0_c_int
+  logical, save :: chem_cached = .false.
+  logical, save :: con_cached = .false.
+
+  interface
+    function pthread_once(once_control, init_routine) bind(c, name="pthread_once")
+      import :: c_ptr, c_funptr, c_int
+      type(c_ptr), value :: once_control
+      type(c_funptr), value :: init_routine
+      integer(c_int) :: pthread_once
+    end function pthread_once
+  end interface
 contains
 
   function opt_real(value, fallback) result(out)
@@ -1121,56 +1157,56 @@ contains
   end procedure brine_pockets
 
   module procedure has_chemfiles
+    integer(c_int) :: stat
+    stat = pthread_once(c_loc(chem_once), c_funloc(probe_chemfiles_once))
+    yes = chem_cached
+  end procedure has_chemfiles
+
+  module procedure has_readcon
+    integer(c_int) :: stat
+    stat = pthread_once(c_loc(con_once), c_funloc(probe_readcon_once))
+    yes = con_cached
+  end procedure has_readcon
+
+  ! pthread_once's init routine: void (*)(void). Runs exactly once,
+  ! from exactly one thread, no matter how many callers of
+  ! has_chemfiles race to trigger it; every other caller's pthread_once
+  ! blocks until this returns. chem_cached is the only thing it writes.
+  subroutine probe_chemfiles_once() bind(c)
     character(len=:), allocatable :: path
     logical :: wrote
-    if (chem_known) then
-      yes = chem_value
-      return
-    end if
     path = probe_path(".pdb")
     if (len(path) == 0) then
-      chem_value = .false.
-      chem_known = .true.
-      yes = chem_value
+      chem_cached = .false.
       return
     end if
     call write_probe_pdb(path, wrote)
     if (wrote) then
       call write_stamp(path)
-      chem_value = reader_accepts(path)
+      chem_cached = reader_accepts(path)
     else
-      chem_value = .false.
+      chem_cached = .false.
     end if
     call delete_probe(path)
-    chem_known = .true.
-    yes = chem_value
-  end procedure has_chemfiles
+  end subroutine probe_chemfiles_once
 
-  module procedure has_readcon
+  subroutine probe_readcon_once() bind(c)
     character(len=:), allocatable :: path
     logical :: wrote
-    if (con_known) then
-      yes = con_value
-      return
-    end if
     path = probe_path(".con")
     if (len(path) == 0) then
-      con_value = .false.
-      con_known = .true.
-      yes = con_value
+      con_cached = .false.
       return
     end if
     call write_probe_con(path, wrote)
     if (wrote) then
       call write_stamp(path)
-      con_value = reader_accepts(path)
+      con_cached = reader_accepts(path)
     else
-      con_value = .false.
+      con_cached = .false.
     end if
     call delete_probe(path)
-    con_known = .true.
-    yes = con_value
-  end procedure has_readcon
+  end subroutine probe_readcon_once
 
   module procedure probe_directory
     dir = temp_directory()
@@ -1214,23 +1250,37 @@ contains
   end function normalize_dir
 
   ! True when a new file can be created in dir and then removed.
+  ! status="new" fails when the name already exists, so a retry with a
+  ! fresh name picks a different candidate rather than reusing one
+  ! that just failed. has_chemfiles and has_readcon each call this
+  ! from inside their own pthread_once, so two threads never run it
+  ! for the same feature at the same time; the retry is for a
+  ! different process, or a leftover file from a previous run, using
+  ! the same name. No counter is shared between calls or threads:
+  ! every retry reads the clock again and advances a local counter
+  ! only, so a second call (from either feature, which do race with
+  ! each other on the filesystem since their once-controls are
+  ! independent) never collides with one already in flight.
   function can_write(dir) result(yes)
     character(len=*), intent(in) :: dir
     logical :: yes
     character(len=:), allocatable :: path
     character(len=48) :: token
     integer(int64) :: ticks
-    integer :: unit, iostat
+    integer :: unit, iostat, attempt
     yes = .false.
     if (len_trim(dir) == 0) return
-    call system_clock(ticks)
-    probe_serial = probe_serial + 1
-    write(token, "(i0,'-',i0)") ticks, probe_serial
-    path = join_dir(trim(dir), "dseams-probe-try-" // trim(token))
-    open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
-    if (iostat /= 0) return
-    close(unit, status="delete")
-    yes = .true.
+    do attempt = 1, 64
+      call system_clock(ticks)
+      write(token, "(i0,'-',i0)") ticks, attempt
+      path = join_dir(trim(dir), "dseams-probe-try-" // trim(token))
+      open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
+      if (iostat == 0) then
+        close(unit, status="delete")
+        yes = .true.
+        return
+      end if
+    end do
   end function can_write
 
   function env_string(name) result(value)
@@ -1279,10 +1329,13 @@ contains
       call warn_probe_directory()
       return
     end if
-    call system_clock(ticks)
+    ! Each pthread_once-guarded caller only ever has one of these
+    ! running at a time for its own feature; the retry is for another
+    ! process or a stale file, so the clock is read fresh each attempt
+    ! rather than shared across them.
     do attempt = 1, 100
-      probe_serial = probe_serial + 1
-      write(token, "(i0,'-',i0)") ticks, probe_serial
+      call system_clock(ticks)
+      write(token, "(i0,'-',i0)") ticks, attempt
       path = join_dir(dir, "dseams-probe-" // trim(token) // suffix)
       open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
       if (iostat == 0) then
@@ -1294,9 +1347,10 @@ contains
     call warn_probe_directory()
   end function probe_path
 
+  ! Each pthread_once-guarded probe can call this at most once per
+  ! process (there is one for chemfiles, one for readcon), so no
+  ! separate once-only guard is needed here.
   subroutine warn_probe_directory()
-    if (probe_warned) return
-    probe_warned = .true.
     write(error_unit, "(a)") "dseams: no writable directory for the reader probe " // &
       "(tried TMPDIR, TEMP, TMP and the working directory)"
     flush(error_unit)

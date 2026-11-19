@@ -18,7 +18,7 @@ keywords = ["molecular-dynamics", "ice", "clathrate", "chemistry"]
 auto-executables = false
 auto-tests = false
 auto-examples = false
-link = ["seams"]
+link = ["seams", "pthread"]
 module-naming = "seams"
 
 [library]
@@ -61,6 +61,13 @@ main = "test_readers.f90"
 name = "feature_query"
 source-dir = "test"
 main = "test_feature_query.f90"
+
+# Real POSIX threads calling has_chemfiles and has_readcon at once.
+# pthread is already on [build] link; the probe itself needs it now.
+[[test]]
+name = "thread_safety"
+source-dir = "test"
+main = "test_thread_safety.f90"
 
 [[example]]
 name = "cubic"

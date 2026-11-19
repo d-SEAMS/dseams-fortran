@@ -248,7 +248,11 @@ module seams
     !! first of `TMPDIR`, `TEMP`, `TMP` and the working directory that can
     !! be written. A missing or unwritable directory is skipped. When none
     !! can be written, the query is false and one diagnostic is printed.
-    !! The result is cached. A build of this package does not decide it.
+    !! The probe runs once per process, behind a POSIX `pthread_once`,
+    !! then its answer is cached; every caller but the one that runs it
+    !! blocks until it finishes, so concurrent calls from different
+    !! threads never race. A build of this package does not decide the
+    !! answer.
     module function has_chemfiles() result(yes)
       logical :: yes
     end function
@@ -257,7 +261,11 @@ module seams
     !! the first of `TMPDIR`, `TEMP`, `TMP` and the working directory that
     !! can be written. A missing or unwritable directory is skipped. When
     !! none can be written, the query is false and one diagnostic is printed.
-    !! The result is cached. A build of this package does not decide it.
+    !! The probe runs once per process, behind a POSIX `pthread_once`,
+    !! then its answer is cached; every caller but the one that runs it
+    !! blocks until it finishes, so concurrent calls from different
+    !! threads never race. A build of this package does not decide the
+    !! answer.
     module function has_readcon() result(yes)
       logical :: yes
     end function

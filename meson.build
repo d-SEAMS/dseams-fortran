@@ -40,16 +40,21 @@ fortran_lib_src = files(
   'src/seams_methods.f90',
 )
 
+# has_chemfiles and has_readcon each run their probe behind a
+# pthread_once, so the library itself needs pthread, not just the
+# thread_safety test.
+threads_dep = dependency('threads')
+
 dseams_lib = static_library(
   'dseams_fortran',
   fortran_lib_src,
-  dependencies: seams_dep,
+  dependencies: [seams_dep, threads_dep],
   pic: true,
 )
 dseams_fortran_dep = declare_dependency(
   link_with: dseams_lib,
   include_directories: dseams_lib.private_dir_include(),
-  dependencies: seams_dep,
+  dependencies: [seams_dep, threads_dep],
 )
 meson.override_dependency('dseams-fortran', dseams_fortran_dep)
 
@@ -93,6 +98,13 @@ if not meson.is_subproject()
     dependencies: dseams_fortran_dep,
   )
   test('fortran_feature_query', feature_query, env: fortran_env, timeout: 180)
+
+  thread_safety = executable(
+    'test_fortran_thread_safety',
+    files('test/test_thread_safety.f90'),
+    dependencies: [dseams_fortran_dep, dependency('threads')],
+  )
+  test('fortran_thread_safety', thread_safety, env: fortran_env, timeout: 180)
 
   # The probe uses the first writable directory among TMPDIR, TEMP, TMP
   # and the working directory. A bogus TMPDIR falls through, so a capable
@@ -142,7 +154,7 @@ if not meson.is_subproject()
     'test_fortran_one_file',
     files('test/test_high.f90'),
     one_file_obj,
-    dependencies: seams_dep,
+    dependencies: [seams_dep, threads_dep],
   )
   test('fortran_one_file', one_file, args: [root], env: fortran_env, timeout: 180)
 

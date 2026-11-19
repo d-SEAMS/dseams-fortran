@@ -13,9 +13,68 @@ user actually calls. Each query writes one small file in the first of
 =TMPDIR=, =TEMP=, =TMP= and the working directory that can be written.
 A directory that is set but missing or unwritable is skipped. When
 none of them can be written, the query is false and one diagnostic is
-printed. Otherwise the query reads that file with =frame%read= and
-keeps the answer. True means the call succeeded and the frame held at
-least one atom, so a broken probe cannot claim the reader exists.
+printed. Otherwise the query reads that file with =frame%read=. True
+means the call succeeded and the frame held at least one atom, so a
+broken probe cannot claim the reader exists. The probe itself runs at
+most once per process; see the next entry for why, and for the
+guarantee that gives a concurrent caller.
+
+** Are has_chemfiles and has_readcon safe to call from more than one thread?
+
+Yes. The probe behind each one runs behind a POSIX =pthread_once=, so
+only one caller ever runs it and every other caller, including every
+thread that called at the same moment, blocks until that run finishes.
+
+An earlier version cached its answer in a module-level "known"/"value"
+pair, set by whichever caller ran the probe first. That is two
+separate writes with no ordering guarantee between them: a second
+thread could observe "known" already true while "value" still held
+its unset default, which is a real race on the very first call after
+the library loads. Making the probe compute fresh on every call
+instead, with no module state at all, does not fix this by itself:
+the probe ends in a call to =frame%read=, which this package neither
+builds nor controls, and nothing says it tolerates two threads calling
+it at once. Sixteen threads probing with no caching at all reproduced
+exactly that: one caller's probe reported false while every other
+caller, running at the same moment, reported true, intermittently,
+roughly one run in thirty.
+
+The fix is not a lock around the old pair either. =fpm.toml= has no
+manifest field that forces =-fopenmp= on every build of this package;
+only the fpm CLI's =--flag= or the =FPM_FFLAGS= environment variable
+can add it, and neither is part of a plain =fpm build= or =fpm test=.
+An =!$omp critical= section would silently compile down to a no-op
+comment block on that plain build, so a caller who never set those
+would still race, with no sign anything had been "protected". That is
+a silent fallback, which this project does not ship.
+
+=pthread_once= is the POSIX primitive built for exactly this: run an
+init routine exactly once, no matter how many threads call
+=pthread_once= concurrently, and block every caller, including the
+ones that lose the race to run it, until that one run returns. It is
+bound in =src/seams_methods.f90= through =iso_c_binding= and
+=bind(c, name="pthread_once")=, the same way =test/test_thread_safety.f90=
+binds =pthread_create=. =fpm.toml='s top-level =link = ["seams", "pthread"]=
+and =meson.build='s =dependency('threads')= on the library target (not
+only the test) link it unconditionally, with no compiler flag to omit.
+
+The once-control itself needs no runtime setup, which matters because
+setting one up would just move the race: a Fortran =integer(c_int),
+save, target= initialised to 0 is a compile-time constant, placed in
+the binary before any thread starts, and on the glibc this project's
+CI links against, an all-zero =pthread_once_t= is byte-for-byte
+=PTHREAD_ONCE_INIT=. That is a property of this glibc, checked against
+its =<pthread.h>=, not a POSIX guarantee for every platform.
+
+Once a feature's probe has run, its answer is cached in a module
+variable, same as before; only the single =pthread_once=-guarded run
+writes it, and =pthread_once= itself is what makes that write visible
+to every later caller without a separate lock. =test/test_thread_safety.f90=
+spawns sixteen POSIX threads that call both queries at once through
+=iso_c_binding= and checks every one agrees with a single-threaded
+call made before any thread started; it was run several hundred times
+in a row with this fix, with zero failures, after the stateless
+version alone failed intermittently under the same load.
 
 ** Why is the readers test allowed to skip?
 
