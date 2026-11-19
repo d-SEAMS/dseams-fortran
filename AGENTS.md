@@ -29,7 +29,7 @@ language-front ABI (`libseams_lang`) live in
 | `src/seams_support.f90` | Reference-counted handle box; not public API |
 | `src/seams.f90`, `src/seams_methods.f90` | `seams`, the derived-type API, and its submodule |
 | `seams.f90` | Includes every `src/` file in order, for a one-file build. fpm and meson must not compile it with `src/` |
-| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90` |
+| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90`, `test_readers.f90`, `test_feature_query.f90`, `test_thread_safety.f90` |
 | `example/` | `cubic.f90` and `minimal.f90`, run as fpm examples and meson tests |
 | `examples/downstream/` | A separate fpm project with a path dependency on this one |
 | `input/` | Trajectories the tests read, copied from seams-core |
@@ -95,7 +95,13 @@ ford ford.md
 the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
 0 0 0`, and from `readers` the lines `has_chemfiles`, `has_readcon`,
 `read` or `skip` for `con`, `pdb` and `gro`, then `fortran readers ok`.
-Meson runs eleven tests, including the one-file build of `seams.f90`
+`feature_query` prints the same two feature-query lines from a
+standalone consumer and `fortran feature query ok`; it does not build
+against a `seams.mod` from before `has_chemfiles` existed.
+`thread_safety` spawns sixteen POSIX threads that all call
+`has_chemfiles` and `has_readcon` at once and prints `fortran thread
+safety ok` once every thread agrees with a single-threaded baseline.
+Meson runs thirteen tests, including the one-file build of `seams.f90`
 and three `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
 
 Every check must pass before a change is called done. Fix the code under
