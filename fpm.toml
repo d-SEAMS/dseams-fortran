@@ -1,10 +1,10 @@
 name = "dseams"
 version = "2.14.1"
 license = "MIT"
-author = "Rohit Goswami"
+author = "Rohit Goswami, Ruhila Goswami"
 maintainer = "rgoswami@ieee.org"
 copyright = "Copyright 2018--present, d-SEAMS core team"
-description = "Fortran interface to the d-SEAMS C API (ice, clathrate and ring analysis)"
+description = "Fortran interface to the d-SEAMS C API. Analyses: CHILL, CHILL+, Steinhardt q4/q6, ql and q6-bar, cutoff, mutual and k-nearest neighbours, primitive rings, hexagonal and double-diamond cages, signature cages, RDF, running coordination number, coordination, hydrogen bonds, axial density, topological fingerprint, contact pairs, domains, prisms, monolayer, site kinds, ice symmetry and brine fronts. Readers: LAMMPS dump and XYZ always; EON CON when the linked libseams includes readcon-core; PDB, GRO and the other chemfiles trajectories when it includes chemfiles. has_chemfiles and has_readcon report the loaded engine."
 homepage = "https://dseams.info"
 categories = ["scientific"]
 keywords = ["molecular-dynamics", "ice", "clathrate", "chemistry"]
@@ -45,6 +45,14 @@ name = "lang_tasks"
 source-dir = "test"
 main = "lang_tasks.f90"
 link = ["seams_lang"]
+
+# CON, PDB and GRO. Each read runs only when has_readcon or has_chemfiles
+# says the loaded libseams can do it. DSEAMS_REQUIRE_READERS=1 makes a
+# false answer a failure, for a job that built those readers in.
+[[test]]
+name = "readers"
+source-dir = "test"
+main = "test_readers.f90"
 
 [[example]]
 name = "cubic"

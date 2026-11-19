@@ -14,6 +14,15 @@ The generated pages list every public symbol. They are
 The C API is the
 [d-SEAMS reference](https://docs.dseams.info/reference/api.html).
 
+## Readers
+
+`frame%read` takes a filesystem path. LAMMPS dump and XYZ need nothing
+beyond libseams. `has_readcon()` is true when that library reads EON
+CON files, and `has_chemfiles()` is true when it reads PDB, GRO and the
+other chemfiles formats. Both ask the loaded engine and cache the
+answer. A program that branches on them runs against a libseams built
+without those libraries and against one built with them.
+
 ## Defaults
 
 A missing optional cutoff is 3.5 angstrom. CHILL and CHILL+ default to

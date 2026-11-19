@@ -17,6 +17,13 @@ submodule (seams) seams_methods
     c_to_f, f_to_c, check_status, copy_key, kind_system, kind_neighbours, kind_rings, &
     kind_cages, kind_topo, kind_brine
   implicit none
+  ! Cached answers of the reader probes. The loaded libseams is the source
+  ! of truth: fpm never sees seams.pc, and meson may be pointed at a
+  ! library directory instead of that file.
+  logical, save :: chem_known = .false.
+  logical, save :: chem_value = .false.
+  logical, save :: con_known = .false.
+  logical, save :: con_value = .false.
 contains
 
   function opt_real(value, fallback) result(out)
@@ -1108,4 +1115,143 @@ contains
     reservoir_waters = int(waters, seams_int)
     call check_status(code, raw, stat, errmsg)
   end procedure brine_pockets
+
+  module procedure has_chemfiles
+    character(len=:), allocatable :: path
+    logical :: wrote
+    if (chem_known) then
+      yes = chem_value
+      return
+    end if
+    path = probe_path(".pdb")
+    call write_probe_pdb(path, wrote)
+    if (wrote) then
+      chem_value = reader_accepts(path)
+      call delete_probe(path)
+    else
+      chem_value = .false.
+    end if
+    chem_known = .true.
+    yes = chem_value
+  end procedure has_chemfiles
+
+  module procedure has_readcon
+    character(len=:), allocatable :: path
+    logical :: wrote
+    if (con_known) then
+      yes = con_value
+      return
+    end if
+    path = probe_path(".con")
+    call write_probe_con(path, wrote)
+    if (wrote) then
+      con_value = reader_accepts(path)
+      call delete_probe(path)
+    else
+      con_value = .false.
+    end if
+    con_known = .true.
+    yes = con_value
+  end procedure has_readcon
+
+  function probe_path(suffix) result(path)
+    character(len=*), intent(in) :: suffix
+    character(len=:), allocatable :: path
+    character(len=16) :: pid
+    interface
+      function c_getpid() bind(C, name="getpid")
+        import c_int
+        integer(c_int) :: c_getpid
+      end function
+    end interface
+    write(pid, "(i0)") c_getpid()
+    path = "/tmp/dseams-probe-" // trim(pid) // suffix
+  end function probe_path
+
+  ! True only when the engine both accepts the file and keeps at least
+  ! one atom. A missing reader returns an error and zero atoms; a probe
+  ! that failed to parse must not be reported as support.
+  function reader_accepts(path) result(yes)
+    character(len=*), intent(in) :: path
+    logical :: yes
+    type(seams_frame) :: frame
+    integer(seams_int) :: stat
+    character(len=:), allocatable :: err
+    yes = .false.
+    frame = new_frame(stat, err)
+    if (stat /= SEAMS_OK) return
+    call frame%read(path, stat=stat, errmsg=err)
+    if (stat /= SEAMS_OK) return
+    yes = frame%count() > 0_seams_int
+  end function reader_accepts
+
+  subroutine write_probe_pdb(path, ok)
+    character(len=*), intent(in) :: path
+    logical, intent(out) :: ok
+    character(len=80) :: lines(4)
+    lines(1) = "HEADER    ONE OXYGEN"
+    lines(2) = "CRYST1    1.000    1.000    1.000  90.00  90.00  90.00 P 1           1"
+    lines(3) = "ATOM      1  OW  SOL A   1       0.000   0.000   0.000  1.00  0.00           O"
+    lines(4) = "END"
+    call write_probe_lines(path, lines, ok)
+  end subroutine write_probe_pdb
+
+  ! First frame of input/eon/tiny_multi_cuh2.con. The box rows use the
+  ! tab separators that file uses. Four atoms, which is also the count
+  ! the readers test expects from the fixture.
+  subroutine write_probe_con(path, ok)
+    character(len=*), intent(in) :: path
+    logical, intent(out) :: ok
+    character(len=1) :: tab
+    character(len=80) :: box_a, box_b
+    character(len=80) :: lines(17)
+    tab = achar(9)
+    box_a = "15.345600" // tab // "21.702000" // tab // "100.000000"
+    box_b = "90.000000" // tab // "90.000000" // tab // "90.000000"
+    lines(1) = "Random Number Seed"
+    lines(2) = '{"con_spec_version":2}'
+    lines(3) = box_a
+    lines(4) = box_b
+    lines(5) = "0 0"
+    lines(6) = "218 0 1"
+    lines(7) = "2"
+    lines(8) = "2 2"
+    lines(9) = "63.546000 1.007930"
+    lines(10) = "Cu"
+    lines(11) = "Coordinates of Component 1"
+    lines(12) = "   0.6394    0.9045    6.9753 1    0"
+    lines(13) = "   3.1969    0.9045    6.9753 1    1"
+    lines(14) = "H"
+    lines(15) = "Coordinates of Component 2"
+    lines(16) = "   8.6823    9.947   11.733 0  2"
+    lines(17) = "   7.9421    9.947   11.733 0  3"
+    call write_probe_lines(path, lines, ok)
+  end subroutine write_probe_con
+
+  subroutine write_probe_lines(path, lines, ok)
+    character(len=*), intent(in) :: path
+    character(len=*), intent(in) :: lines(:)
+    logical, intent(out) :: ok
+    integer :: unit, i, iostat
+    ok = .false.
+    open(newunit=unit, file=path, status="replace", action="write", iostat=iostat)
+    if (iostat /= 0) return
+    do i = 1, size(lines)
+      write(unit, "(a)", iostat=iostat) trim(lines(i))
+      if (iostat /= 0) then
+        close(unit, status="delete")
+        return
+      end if
+    end do
+    close(unit)
+    ok = .true.
+  end subroutine write_probe_lines
+
+  subroutine delete_probe(path)
+    character(len=*), intent(in) :: path
+    integer :: unit, iostat
+    open(newunit=unit, file=path, status="old", iostat=iostat)
+    if (iostat /= 0) return
+    close(unit, status="delete")
+  end subroutine delete_probe
 end submodule seams_methods
