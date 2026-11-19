@@ -21,13 +21,17 @@ From the repository root, with FORD 7 and Sphinx installed:
    sphinx-build -W -b html docs build/html
    python3 docs/assemble_site.py build/html build/ford
    python3 docs/check_site.py build/html
+   python3 docs/seo.py --check build/html
 
 ``ford.md`` is the FORD project file. It reads ``src/`` and writes
 ``build/ford``. The coverage check reads the public names in
 ``seams``, ``seams_c`` and ``seams_kinds`` and fails if a name has no
 page. ``seams_support`` is the reference-counted handle box and is
 excluded. The assemble step copies the FORD tree to
-``build/html/api/generated``. Open ``build/html/index.html``.
+``build/html/api/generated`` and rewrites the two link forms FORD
+7.0.13 gets wrong. The site check wants the recordings and every
+local link, and the SEO check wants one title, one canonical link and
+one set of social tags per page. Open ``build/html/index.html``.
 
 Run the package
 ---------------
