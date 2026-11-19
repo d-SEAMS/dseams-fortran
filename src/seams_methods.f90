@@ -1,5 +1,6 @@
 ! Copyright (c) d-SEAMS developers
 submodule (seams) seams_methods
+  use, intrinsic :: iso_fortran_env, only: int64
   use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char
   use seams_c, only: seams_version_string, seams_label_name, seams_status_string, &
     seams_set_num_threads, seams_get_num_threads, seams_system_create, &
@@ -18,8 +19,9 @@ submodule (seams) seams_methods
     kind_cages, kind_topo, kind_brine
   implicit none
   ! Cached answers of the reader probes. The loaded libseams is the source
-  ! of truth: fpm never sees seams.pc, and meson may be pointed at a
-  ! library directory instead of that file.
+  ! of truth: fpm never sees seams.pc, and the SEAMS_HAS_* macros meson
+  ! passes on are informational. The probe file goes in TMPDIR, TEMP or
+  ! TMP, or in the working directory when none of those is set.
   logical, save :: chem_known = .false.
   logical, save :: chem_value = .false.
   logical, save :: con_known = .false.
@@ -1124,13 +1126,20 @@ contains
       return
     end if
     path = probe_path(".pdb")
+    if (len(path) == 0) then
+      chem_value = .false.
+      chem_known = .true.
+      yes = chem_value
+      return
+    end if
     call write_probe_pdb(path, wrote)
     if (wrote) then
+      call write_stamp(path)
       chem_value = reader_accepts(path)
-      call delete_probe(path)
     else
       chem_value = .false.
     end if
+    call delete_probe(path)
     chem_known = .true.
     yes = chem_value
   end procedure has_chemfiles
@@ -1143,30 +1152,109 @@ contains
       return
     end if
     path = probe_path(".con")
+    if (len(path) == 0) then
+      con_value = .false.
+      con_known = .true.
+      yes = con_value
+      return
+    end if
     call write_probe_con(path, wrote)
     if (wrote) then
+      call write_stamp(path)
       con_value = reader_accepts(path)
-      call delete_probe(path)
     else
       con_value = .false.
     end if
+    call delete_probe(path)
     con_known = .true.
     yes = con_value
   end procedure has_readcon
 
+  ! Directory for the probe file. TMPDIR, then TEMP, then TMP. The
+  ! working directory is the fallback, so this never assumes a Unix
+  ! temp path and never calls getpid. A trailing slash is removed
+  ! except when the directory is the root.
+  function temp_directory() result(dir)
+    character(len=:), allocatable :: dir
+    dir = env_string("TMPDIR")
+    if (len(dir) == 0) dir = env_string("TEMP")
+    if (len(dir) == 0) dir = env_string("TMP")
+    if (len(dir) == 0) dir = "."
+    do while (len(dir) > 1)
+      if (dir(len(dir):len(dir)) /= "/" .and. dir(len(dir):len(dir)) /= "\") exit
+      dir = dir(1:len(dir) - 1)
+    end do
+  end function temp_directory
+
+  function env_string(name) result(value)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable :: value
+    integer :: length, stat
+    call get_environment_variable(name, length=length, status=stat)
+    if (stat /= 0 .or. length <= 0) then
+      value = ""
+      return
+    end if
+    allocate(character(len=length) :: value)
+    call get_environment_variable(name, value)
+  end function env_string
+
+  function join_temp(name) result(path)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable :: path
+    character(len=:), allocatable :: dir
+    character(len=1) :: sep
+    dir = temp_directory()
+    if (dir(len(dir):len(dir)) == "/" .or. dir(len(dir):len(dir)) == "\") then
+      path = dir // name
+      return
+    end if
+    sep = "/"
+    if (index(dir, "\") > 0) sep = "\"
+    path = dir // sep // name
+  end function join_temp
+
+  ! A fresh name in the temp directory. system_clock plus a counter
+  ! keeps two probes in one process apart. status='new' retries when
+  ! the name is already taken.
   function probe_path(suffix) result(path)
     character(len=*), intent(in) :: suffix
     character(len=:), allocatable :: path
-    character(len=16) :: pid
-    interface
-      function c_getpid() bind(C, name="getpid")
-        import c_int
-        integer(c_int) :: c_getpid
-      end function
-    end interface
-    write(pid, "(i0)") c_getpid()
-    path = "/tmp/dseams-probe-" // trim(pid) // suffix
+    character(len=48) :: token
+    integer(int64) :: ticks
+    integer, save :: serial = 0
+    integer :: unit, iostat, attempt
+    call system_clock(ticks)
+    path = ""
+    do attempt = 1, 100
+      serial = serial + 1
+      write(token, "(i0,'-',i0)") ticks, serial
+      path = join_temp("dseams-probe-" // trim(token) // suffix)
+      open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
+      if (iostat == 0) then
+        close(unit)
+        return
+      end if
+    end do
+    path = ""
   end function probe_path
+
+  ! Left in the temp directory only when DSEAMS_PROBE_STAMP=1, so a
+  ! test can see which directory the probe used. The readers test
+  ! deletes it.
+  subroutine write_stamp(probe)
+    character(len=*), intent(in) :: probe
+    character(len=:), allocatable :: flag, stamp
+    integer :: unit, iostat
+    flag = env_string("DSEAMS_PROBE_STAMP")
+    if (len(flag) == 0) return
+    if (flag(1:1) /= "1") return
+    stamp = join_temp("dseams-probe-stamp")
+    open(newunit=unit, file=stamp, status="replace", action="write", iostat=iostat)
+    if (iostat /= 0) return
+    write(unit, "(a)") probe
+    close(unit)
+  end subroutine write_stamp
 
   ! True only when the engine both accepts the file and keeps at least
   ! one atom. A missing reader returns an error and zero atoms; a probe

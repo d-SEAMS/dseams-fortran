@@ -242,14 +242,18 @@ module seams
       integer(seams_int) :: nframes
     end function
 
-    !> Asks the loaded libseams, by reading a one-atom PDB it writes under `/tmp`.
-    !! The result is cached. A build of this package does not decide it.
+    !> Asks the loaded libseams, by reading a one-atom PDB it writes in the
+    !! process temp directory (`TMPDIR`, then `TEMP`, then `TMP`, else the
+    !! working directory). The result is cached. A build of this package
+    !! does not decide it.
     module function has_chemfiles() result(yes)
       logical :: yes
     end function
 
-    !> Asks the loaded libseams, by reading a four-atom EON CON it writes under `/tmp`.
-    !! The result is cached. A build of this package does not decide it.
+    !> Asks the loaded libseams, by reading a four-atom EON CON it writes in
+    !! the process temp directory (`TMPDIR`, then `TEMP`, then `TMP`, else
+    !! the working directory). The result is cached. A build of this package
+    !! does not decide it.
     module function has_readcon() result(yes)
       logical :: yes
     end function

@@ -53,13 +53,18 @@ directories: ``meson setup build/meson -Dseams_libdir="$PREFIX/lib"``.
 A parent project calls ``subproject('dseams-fortran')`` and then
 ``dependency('dseams-fortran')``. The meson test names are
 ``fortran_capi``, ``fortran_check``, ``fortran_high``,
-``fortran_readers``, ``fortran_one_file``, ``fortran_lang_tasks``,
-``fortran_cubic`` and ``fortran_minimal``. ``-Dwith_chemfiles`` and
+``fortran_readers``, ``fortran_readers_tmpdir``,
+``fortran_readers_tmpdir_absent``, ``fortran_one_file``,
+``fortran_lang_tasks``, ``fortran_cubic`` and ``fortran_minimal``.
+``fortran_readers_tmpdir`` sets ``TMPDIR`` to a directory in the build
+tree. ``fortran_readers_tmpdir_absent`` sets ``TMPDIR`` to a path that
+is not created, and the queries are false. ``-Dwith_chemfiles`` and
 ``-Dwith_readcon`` (``auto``, ``enabled`` or ``disabled``) define
 ``SEAMS_HAS_CHEMFILES`` and ``SEAMS_HAS_READCON`` when seams.pc already
 carries them or when the matching pkg-config file is found. They do
-not link those libraries. The feature queries do not read the macros:
-they ask the loaded libseams.
+not link those libraries. The macros are informational. The runtime
+query is the mechanism: ``has_chemfiles`` and ``has_readcon`` ask the
+loaded libseams.
 
 One file
 --------

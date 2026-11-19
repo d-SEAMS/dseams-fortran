@@ -9,10 +9,11 @@
 =seams.h= has no feature query. The =seams= executable's =--features=
 flag is compiled into that program, not into =libseams=, and fpm does
 not pass the =Cflags= from =seams.pc=. The loaded library is what a
-user actually calls. Each query writes one small file under =/tmp=,
-reads it with =frame%read=, and keeps the answer. True means the call
-succeeded and the frame held at least one atom, so a broken probe
-cannot claim the reader exists.
+user actually calls. Each query writes one small file in =TMPDIR=,
+or in =TEMP=, or in =TMP=, or in the working directory when none of
+those is set, reads it with =frame%read=, and keeps the answer. True
+means the call succeeded and the frame held at least one atom, so a
+broken probe cannot claim the reader exists.
 
 ** Why is the readers test allowed to skip?
 
@@ -27,9 +28,10 @@ fails if it would have skipped.
 
 Chemfiles and readcon-core (lode-org/readcon-core) are detected by
 seams-core and linked into =libseams=. Copying either tree here would
-be a second implementation. Meson only defines =SEAMS_HAS_CHEMFILES=
-or =SEAMS_HAS_READCON= when =seams.pc= already has the macro or when
-the matching pkg-config file is found. Absence of both leaves the
+be a second implementation. Meson defines =SEAMS_HAS_CHEMFILES= or
+=SEAMS_HAS_READCON= when =seams.pc= already has the macro or when the
+matching pkg-config file is found. Those macros are informational.
+The runtime query is the mechanism. Absence of both leaves the
 Fortran build working, with LAMMPS dump and XYZ.
 
 ** Why are towncrier and cocogitto both here?

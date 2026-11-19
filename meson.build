@@ -138,6 +138,24 @@ if not meson.is_subproject()
   )
   test('fortran_readers', readers, args: [root], env: fortran_env, timeout: 180)
 
+  # The probe follows TMPDIR. One run uses a directory this build creates.
+  # Another points TMPDIR at a path that is not there: both queries must
+  # come back false, which is how a hardcoded temp path would fail the test.
+  reader_tmp = meson.project_build_root() / 'reader-tmp'
+  run_command('mkdir', '-p', reader_tmp, check: true)
+  tmpdir_env = environment()
+  tmpdir_env.set('OMP_NUM_THREADS', '1')
+  tmpdir_env.set('DSEAMS_ROOT', root)
+  tmpdir_env.set('TMPDIR', reader_tmp)
+  tmpdir_env.set('DSEAMS_PROBE_STAMP', '1')
+  test('fortran_readers_tmpdir', readers, args: [root], env: tmpdir_env, timeout: 180)
+  absent_env = environment()
+  absent_env.set('OMP_NUM_THREADS', '1')
+  absent_env.set('DSEAMS_ROOT', root)
+  absent_env.set('TMPDIR', meson.project_build_root() / 'reader-tmp-absent')
+  absent_env.set('DSEAMS_REQUIRE_READERS', '0')
+  test('fortran_readers_tmpdir_absent', readers, args: [root], env: absent_env, timeout: 180)
+
   # seams.f90 includes every module source: the single-file build, one
   # plain compiler call as a user without fpm or meson would make it.
   # Meson's module scanner does not follow include lines, so the call is a
