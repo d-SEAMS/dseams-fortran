@@ -74,7 +74,10 @@ main = "test_thread_safety.f90"
 link = ["pthread"]
 
 # A symlink planted at the once-guard's old lock-file name must not be
-# followed or truncated: see the comment at the top of the test.
+# followed or truncated: see the comment at the top of the test. fpm
+# has no skip concept, so a missing precondition outside CI (STOP 77
+# in the test) is reported here as a plain test failure, same exit
+# code as meson's SKIP; see the test's own header comment.
 [[test]]
 name = "no_lock_symlink"
 source-dir = "test"

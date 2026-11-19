@@ -103,22 +103,27 @@ problem.
 
 What this package ships instead, in =src/dseams_once.c=, is a plain
 in-process compare-and-swap on a C11 =<stdatomic.h>= =atomic_int=:
-three states, 0 untouched, 1 one thread is running the guarded
-section, 2 done, with every other caller spinning on an atomic load
-until it sees 2. =<stdatomic.h>= is a compiler feature, not an OS
-primitive, so there is no vendor-chosen static initializer to get
-wrong (contrast =PTHREAD_ONCE_INIT= above) and no OS header to link
-against on a target that lacks one (contrast =flock=, a BSD extension
-present on Linux and macOS but absent from a native Windows ABI). GCC,
-Clang (including Apple Clang) and MSVC (from Visual Studio 2022) all
-implement it. C11's =<threads.h>= =call_once= was deliberately not
-used instead, despite doing almost exactly this: Apple's libc has
-never implemented C11 =<threads.h>=, and MSVC's support for it is
-recent and inconsistent, where =<stdatomic.h>= support is not. Neither
-=fpm.toml= nor =meson.build= links =pthread= into the library any
-more; only =test/test_thread_safety.f90=, which spawns real POSIX
-threads to exercise this, still does, through its own
-=link = ["pthread"]= stanza.
+three states, 0 for untouched, 1 for a thread running the guarded
+section, 2 for done, with every other caller spinning on an atomic
+load until it sees 2. Each spin iteration yields the CPU first
+(=thrd_yield= from C11 =<threads.h>= where =__has_include= finds it,
+=sched_yield= or =SwitchToThread= otherwise), so a loser thread does
+not hold a core at full load for however long the one winner's probe
+takes; it is a scheduler hint on the calling thread, not a lock on
+anything, and plants no file. =<stdatomic.h>= is a compiler feature,
+not an OS primitive, so there is no vendor-chosen static initializer
+to get wrong (contrast =PTHREAD_ONCE_INIT= above) and no OS header
+to link against on a target that lacks one (contrast =flock=, a BSD
+extension present on Linux and macOS but absent from a native Windows
+ABI). GCC, Clang (including Apple Clang) and MSVC (from Visual Studio
+2022) all implement it. C11's =<threads.h>= =call_once= was
+deliberately not used instead, despite doing almost exactly this:
+Apple's libc has never implemented C11 =<threads.h>=, and MSVC's
+support for it is recent and inconsistent, where =<stdatomic.h>=
+support is not. Neither =fpm.toml= nor =meson.build= links =pthread=
+into the library any more; only =test/test_thread_safety.f90=, which
+spawns real POSIX threads to exercise this, still does, through its
+own =link = ["pthread"]= stanza.
 
 Once a feature's probe has run, its answer is cached in a module
 variable, same as before; only the single guarded run writes it, and

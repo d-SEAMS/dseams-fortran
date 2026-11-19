@@ -19,13 +19,42 @@
  * implemented C11 <threads.h>, and MSVC's support for it is recent and
  * inconsistent, where <stdatomic.h> support is not.
  *
- * The busy-spin wait is deliberate: the guarded section is a one-time
- * file probe, expected to take microseconds to milliseconds, not long
- * enough to be worth a platform mutex or futex here, and every state
- * transition this file makes is one one-time use per feature per
- * process.
+ * The wait is a spin, not a platform mutex or futex: the guarded
+ * section is a one-time file probe, expected to take microseconds to
+ * milliseconds, and every state transition this file makes is one
+ * one-time use per feature per process. Each spin iteration still
+ * yields the CPU rather than busy-looping flat out, so a loser thread
+ * does not hold a core at 100% for however long the one winner's
+ * probe takes. DSEAMS_YIELD prefers C11's thrd_yield (<threads.h>),
+ * detected with __has_include rather than __STDC_NO_THREADS__, since
+ * Apple's libc has never implemented <threads.h> without reliably
+ * defining that macro either; sched_yield (POSIX) and
+ * SwitchToThread (Win32) are the portable fallbacks where
+ * <threads.h> is absent, and a plain no-op (the prior behavior) is
+ * the last resort if none of the three is available. No OS lock file
+ * is involved in any of this: it is purely a hint to the scheduler
+ * about this one thread, not a lock on anything.
  */
 #include <stdatomic.h>
+
+#if defined(__has_include)
+#  if __has_include(<threads.h>) && !defined(__STDC_NO_THREADS__)
+#    include <threads.h>
+#    define DSEAMS_YIELD() thrd_yield()
+#  endif
+#endif
+
+#if !defined(DSEAMS_YIELD)
+#  if defined(_WIN32)
+#    include <windows.h>
+#    define DSEAMS_YIELD() SwitchToThread()
+#  elif defined(__unix__) || defined(__APPLE__)
+#    include <sched.h>
+#    define DSEAMS_YIELD() ((void)sched_yield())
+#  else
+#    define DSEAMS_YIELD() ((void)0)
+#  endif
+#endif
 
 int dseams_once_enter(atomic_int *state) {
   int expected = 0;
@@ -34,7 +63,7 @@ int dseams_once_enter(atomic_int *state) {
     return 1;
   }
   while (atomic_load_explicit(state, memory_order_acquire) != 2) {
-    /* spin */
+    DSEAMS_YIELD();
   }
   return 0;
 }

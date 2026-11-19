@@ -19,6 +19,21 @@
 ! exact directory the probe itself reports, pointing at a "victim"
 ! file with known content, then run the real probe through
 ! has_chemfiles and has_readcon and check the victim is untouched.
+!
+! Two preconditions make that plant-and-check possible: a writable
+! probe directory, and ln(1) to create the symlink. Neither failing
+! is ever reported as "ok": that would print a pass for a check that
+! never ran. Under CI (the CI environment variable, set by every
+! common CI system including GitHub Actions), both preconditions
+! always hold on this project's own runner, so a precondition failure
+! there means the runner itself is broken, not a legitimate skip, and
+! this program fails hard (STOP with a nonzero, non-77 status).
+! Outside CI, a missing precondition is a real, reportable skip: STOP
+! 77, the GNU/automake convention meson's test harness hardcodes as
+! SKIP (mesonbuild/mtest.py: GNU_SKIP_RETURNCODE; there is no per-test
+! kwarg to set it, since it is not configurable); fpm has no skip
+! concept, so the same STOP 77 is simply a failure there, which is the
+! honest fallback when the test runner cannot represent "skipped".
 program test_no_lock_symlink
   use, intrinsic :: iso_fortran_env, only: int64
   use seams, only: has_chemfiles, has_readcon, probe_directory
@@ -27,14 +42,14 @@ program test_no_lock_symlink
   character(len=*), parameter :: payload = "do not truncate me"
   character(len=len(payload)) :: read_back
   integer :: unit, iostat, cmdstat, exitstat
-  logical :: chem, rcon, ex
+  logical :: chem, rcon, ex, ci
   character(len=32) :: suffix
+
+  ci = running_in_ci()
 
   call probe_directory(dir)
   if (len(dir) == 0) then
-    print "(a)", "no writable probe directory; skipping the symlink check"
-    print "(a)", "fortran no lock symlink ok"
-    stop
+    call skip_or_fail(ci, "no writable probe directory for the symlink check")
   end if
 
   call pid_suffix(suffix)
@@ -54,10 +69,8 @@ program test_no_lock_symlink
   call execute_command_line("ln -s " // victim // " " // old_lock_name, &
     wait=.true., exitstat=exitstat, cmdstat=cmdstat)
   if (cmdstat /= 0 .or. exitstat /= 0) then
-    print "(a)", "no ln(1) to plant the symlink; skipping the symlink check"
     call delete_if_exists(victim)
-    print "(a)", "fortran no lock symlink ok"
-    stop
+    call skip_or_fail(ci, "no ln(1) available to plant the symlink")
   end if
 
   inquire(file=old_lock_name, exist=ex)
@@ -90,6 +103,38 @@ program test_no_lock_symlink
   print "(a,l1,a,l1)", "no lock symlink has_chemfiles ", chem, " has_readcon ", rcon
   print "(a)", "fortran no lock symlink ok"
 contains
+  ! CI is the one variable every common CI system sets (GitHub Actions,
+  ! GitLab CI, Travis, CircleCI); a short VALUE buffer is fine, since
+  ! get_environment_variable reports stat=-1 (not 1, "does not exist")
+  ! when the real value just does not fit, so both stat values below
+  ! mean "the variable is set", regardless of what it is set to.
+  function running_in_ci() result(yes)
+    logical :: yes
+    character(len=8) :: value
+    integer :: length, stat
+    call get_environment_variable("CI", value, length, stat)
+    yes = (stat == 0 .or. stat == -1) .and. length > 0
+  end function running_in_ci
+
+  ! Never prints "ok": that would report a pass for a check that did
+  ! not run. Under CI, a missing precondition is this runner's own
+  ! fault, so it is a hard failure. Elsewhere, it is a real skip:
+  ! STOP 77, meson's hardcoded skip convention, reported SKIP there;
+  ! fpm has no skip concept, so the same exit code is just a failure
+  ! under fpm, the most honest thing fpm can report.
+  subroutine skip_or_fail(ci, reason)
+    logical, intent(in) :: ci
+    character(len=*), intent(in) :: reason
+    if (ci) then
+      print "(a)", "FAIL: " // reason // &
+        " (CI must provide this; the symlink regression check did not run)"
+      error stop "symlink regression check did not run under CI"
+    end if
+    print "(a)", "SKIP: " // reason // &
+      "; the symlink regression check did not run"
+    stop 77
+  end subroutine skip_or_fail
+
   subroutine pid_suffix(text)
     character(len=*), intent(out) :: text
     integer(int64) :: ticks

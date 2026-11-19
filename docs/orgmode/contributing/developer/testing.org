@@ -36,7 +36,12 @@ any thread started. =no_lock_symlink= plants a symlink named
 =dseams-probe.lock=, an old, no longer used lock-file name, next to a
 file with known content, in the directory =probe_directory= reports,
 then runs =has_chemfiles= and =has_readcon= and checks that file is
-unchanged, printing =fortran no lock symlink ok=; see
+unchanged, printing =fortran no lock symlink ok= only when that check
+actually ran. Without a writable probe directory or without =ln(1)=
+to plant the symlink, the check cannot run at all; outside =CI= that
+is a skip (=STOP 77=, the GNU/automake convention meson's test harness
+already reports as SKIP, not a pass) and under =CI= it is a hard
+failure, since the CI image is expected to have both. See
 =docs/orgmode/contributing/developer/faq.org=.
 
 The CON read runs only when =has_readcon= is true. The PDB and GRO reads

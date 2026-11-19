@@ -135,6 +135,11 @@ if not meson.is_subproject()
     dependencies: dseams_fortran_dep,
     link_language: 'fortran',
   )
+  # Meson's test harness hardcodes exit code 77 as the GNU/automake
+  # skip convention (mesonbuild/mtest.py: GNU_SKIP_RETURNCODE); there
+  # is no per-test kwarg to set, since it is not configurable. Outside
+  # CI, a missing precondition (no writable probe directory, no
+  # ln(1)) exits 77 there and is reported SKIP, never "ok".
   test('fortran_no_lock_symlink', no_lock_symlink, env: fortran_env, timeout: 180)
 
   # The probe uses the first writable directory among TMPDIR, TEMP, TMP
