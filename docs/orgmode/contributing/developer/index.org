@@ -4,9 +4,6 @@
 
 * Developer Guide
 
-Software authors: Rohit Goswami (ORCID 0000-0002-2393-8056) and
-Ruhila Goswami (ORCID 0000-0002-5443-9356).
-
 This section is the day-to-day workflow for the =dseams= fpm package.
 The reader manual stays in =docs/=. This directory is for people who
 cut a release or change the binding.

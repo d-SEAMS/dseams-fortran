@@ -4,9 +4,6 @@
 
 * Release Process
 
-Software authors: Rohit Goswami (ORCID 0000-0002-2393-8056) and
-Ruhila Goswami (ORCID 0000-0002-5443-9356).
-
 The package version is the seams-core version it binds. A release here
 happens after seams-core has tagged =vX.Y.Z=. The tag on this repository
 is the same string. Publishing is the fortran-lang fpm registry, from

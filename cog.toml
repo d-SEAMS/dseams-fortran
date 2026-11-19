@@ -49,7 +49,6 @@ revert   = { changelog_title = "Reverts" }
 path = "CHANGELOG.md"
 authors = [
   { username = "HaoZeke", signature = "Rohit Goswami (ORCID 0000-0002-2393-8056)" },
-  { username = "Ruhila Goswami", signature = "Ruhila Goswami (ORCID 0000-0002-5443-9356)" },
 ]
 
 [git_hooks]

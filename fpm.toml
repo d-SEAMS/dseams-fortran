@@ -1,7 +1,7 @@
 name = "dseams"
 version = "2.14.1"
 license = "MIT"
-author = "Rohit Goswami, Ruhila Goswami"
+author = "Rohit Goswami"
 maintainer = "rgoswami@ieee.org"
 copyright = "Copyright 2018--present, d-SEAMS core team"
 description = "Fortran interface to the d-SEAMS C API. Analyses: CHILL, CHILL+, Steinhardt q4/q6, ql and q6-bar, cutoff, mutual and k-nearest neighbours, primitive rings, hexagonal and double-diamond cages, signature cages, RDF, running coordination number, coordination, hydrogen bonds, axial density, topological fingerprint, contact pairs, domains, prisms, monolayer, site kinds, ice symmetry and brine fronts. Readers: LAMMPS dump and XYZ always; EON CON when the linked libseams includes readcon-core; PDB, GRO and the other chemfiles trajectories when it includes chemfiles. has_chemfiles and has_readcon report the loaded engine."

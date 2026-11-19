@@ -1,1 +1,1 @@
-CITATION.cff, the FORD project file, the Sphinx configuration and the developer pages list Rohit Goswami (ORCID 0000-0002-2393-8056) and Ruhila Goswami (ORCID 0000-0002-5443-9356).
+`ford.md` records the ORCID of Rohit Goswami, already named as the author there. `docs/conf.py` keeps the d-SEAMS developers label alongside him.
