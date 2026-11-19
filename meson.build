@@ -87,6 +87,13 @@ if not meson.is_subproject()
   )
   test('fortran_readers', readers, args: [root], env: fortran_env, timeout: 180)
 
+  feature_query = executable(
+    'test_fortran_feature_query',
+    files('test/test_feature_query.f90'),
+    dependencies: dseams_fortran_dep,
+  )
+  test('fortran_feature_query', feature_query, env: fortran_env, timeout: 180)
+
   # The probe uses the first writable directory among TMPDIR, TEMP, TMP
   # and the working directory. A bogus TMPDIR falls through, so a capable
   # build still reports true. With all three unset, the file is in the cwd.

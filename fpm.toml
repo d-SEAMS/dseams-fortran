@@ -54,6 +54,14 @@ name = "readers"
 source-dir = "test"
 main = "test_readers.f90"
 
+# A standalone consumer of has_chemfiles, has_readcon and probe_directory,
+# which add no C ABI: this fails to compile against a seams.mod built
+# before they existed.
+[[test]]
+name = "feature_query"
+source-dir = "test"
+main = "test_feature_query.f90"
+
 [[example]]
 name = "cubic"
 source-dir = "example"
