@@ -22,7 +22,8 @@ On ``input/traj/genice_sI.lammpstrj``, with ``max_depth=6``:
 ``call rings%fraction(6_seams_int, fraction)`` is the fraction of
 atoms that sit on a six-ring. Size 0 counts atoms that sit on any
 ring. ``call rings%vertices(1_seams_int, atoms)`` returns the atom
-indices of the first ring. The index is 1-based.
+indices of the first ring. The ring index is 1-based; the atom
+indices come back 0-based, as in ``seams.h``.
 
 Ice Ih
 ------

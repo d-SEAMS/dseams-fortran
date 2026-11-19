@@ -11,7 +11,8 @@ Ice Ih
 ------
 
 ``input/traj/ice1h.lammpstrj`` is 128 waters. The program on the
-`Fortran <../../tutorials/fortran.html>`_ page reads it. CHILL+ labels
+`Reading a trajectory <../../tutorials/fortran.html>`_ page reads it.
+CHILL+ labels
 every molecule hexagonal, the cage search finds 128 hexagonal cages
 and no double-diamond cage, and the ring histogram holds 256
 six-rings. The mean local q6 is 0.62585547.
