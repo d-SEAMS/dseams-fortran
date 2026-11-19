@@ -9,11 +9,13 @@
 =seams.h= has no feature query. The =seams= executable's =--features=
 flag is compiled into that program, not into =libseams=, and fpm does
 not pass the =Cflags= from =seams.pc=. The loaded library is what a
-user actually calls. Each query writes one small file in =TMPDIR=,
-or in =TEMP=, or in =TMP=, or in the working directory when none of
-those is set, reads it with =frame%read=, and keeps the answer. True
-means the call succeeded and the frame held at least one atom, so a
-broken probe cannot claim the reader exists.
+user actually calls. Each query writes one small file in the first of
+=TMPDIR=, =TEMP=, =TMP= and the working directory that can be written.
+A directory that is set but missing or unwritable is skipped. When
+none of them can be written, the query is false and one diagnostic is
+printed. Otherwise the query reads that file with =frame%read= and
+keeps the answer. True means the call succeeded and the frame held at
+least one atom, so a broken probe cannot claim the reader exists.
 
 ** Why is the readers test allowed to skip?
 
@@ -57,11 +59,9 @@ rewrite it.
 
 ** Who is listed as an author?
 
-The software authors are Rohit Goswami
-(ORCID 0000-0002-2393-8056) and Ruhila Goswami
-(ORCID 0000-0002-5443-9356). =CITATION.cff=, the FORD project file,
-the Sphinx configuration and these pages list both. =fpm.toml= has
-an author string and no ORCID field. The preferred citation is the
-Journal of Chemical Information and Modeling paper and keeps that
-paper's authors. No affiliation is invented for a person who did
-not already have one.
+The software author in =CITATION.cff=, =ford.md= and =fpm.toml= is
+Rohit Goswami (ORCID 0000-0002-2393-8056). =fpm.toml= has no ORCID
+field. =docs/conf.py= names the d-SEAMS developers alongside him.
+The preferred citation is the Journal of Chemical Information and
+Modeling paper and keeps that paper's authors. No affiliation is
+invented for a person who did not already have one.
