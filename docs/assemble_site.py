@@ -5,6 +5,12 @@
 FORD 7.0.13 writes some links as absolute paths into its output
 directory (the result type of a module function in an interface). Those
 are rewritten relative to each page so the site works when served.
+
+The same FORD version links the Module Procedures sidebar of an
+interface page at #moduleprocedure-<name> while the page anchors the
+sections with proc-<name> (seen on assignment(=), whose module
+procedures have no pages of their own). Those fragment links are
+rewritten to the anchors FORD emits.
 """
 
 from __future__ import annotations
@@ -24,6 +30,7 @@ CDN_JS = re.compile(r'[ \t]*<script src="https://cdn\.jsdelivr\.net/npm/bootstra
 MATHJAX_CONFIG = re.compile(r'[ \t]*<script type="text/x-mathjax-config">.*?</script>\n?', re.S)
 MATHJAX_LOAD = re.compile(r'[ \t]*<script src="https://cdn\.jsdelivr\.net/npm/mathjax@[^"]*"[^>]*></script>\n?', re.S)
 LUNR = re.compile(r'<script src="https://unpkg\.com/lunr/lunr\.js"></script>')
+DEAD_FRAGMENT = re.compile(r'#moduleprocedure-')
 SCHEME = (
     "<script>document.documentElement.setAttribute('data-bs-theme',"
     "matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')</script>"
@@ -84,6 +91,9 @@ def main() -> int:
         if prefix in text:
             text = text.replace(prefix, rel)
             print("relative links in {}".format(page.relative_to(html)))
+        if DEAD_FRAGMENT.search(text):
+            text = DEAD_FRAGMENT.sub("#proc-", text)
+            print("procedure anchors in {}".format(page.relative_to(html)))
         page.write_text(theme_page(text, rel), encoding="utf-8")
     enhance(html)
     print("copied {} -> {}".format(ford, dest))
