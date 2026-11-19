@@ -1,0 +1,63 @@
+#+TITLE: Developer FAQ
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Developer FAQ
+
+** Why do has_chemfiles and has_readcon read a file?
+
+=seams.h= has no feature query. The =seams= executable's =--features=
+flag is compiled into that program, not into =libseams=, and fpm does
+not pass the =Cflags= from =seams.pc=. The loaded library is what a
+user actually calls. Each query writes one small file under =/tmp=,
+reads it with =frame%read=, and keeps the answer. True means the call
+succeeded and the frame held at least one atom, so a broken probe
+cannot claim the reader exists.
+
+** Why is the readers test allowed to skip?
+
+A checkout tested against the CI libseams that passes
+=-Dwith_chemfiles=disabled= cannot read PDB or GRO. Failing that test
+there would force every job to vendor chemfiles. The skip is the
+feature query and nothing else. The readers job builds libseams with
+both libraries and sets =DSEAMS_REQUIRE_READERS=1=, so the same test
+fails if it would have skipped.
+
+** Why does this package not compile the readers?
+
+Chemfiles and readcon-core (lode-org/readcon-core) are detected by
+seams-core and linked into =libseams=. Copying either tree here would
+be a second implementation. Meson only defines =SEAMS_HAS_CHEMFILES=
+or =SEAMS_HAS_READCON= when =seams.pc= already has the macro or when
+the matching pkg-config file is found. Absence of both leaves the
+Fortran build working, with LAMMPS dump and XYZ.
+
+** Why are towncrier and cocogitto both here?
+
+Towncrier owns =CHANGELOG.md=. Fragments live in =changelog.d/= and
+=towncrier.toml= points at that directory. Cocogitto owns the version
+commit and the =vX.Y.Z= tag. =cog.toml= sets =disable_changelog = true=
+so the two tools do not write the same file. =pre_bump_hooks= write
+the version, regenerate the copies, then run =towncrier build=.
+
+** Where is the version written by hand?
+
+=version= in =fpm.toml=. =ci/version/dseams_version.py sync= rewrites
+that line and the =version:= line of =ford.md=, and =python3 -m cogapp=
+rewrites the files in =ci/version/files.txt= (=meson.build=,
+=CITATION.cff=, =docs/conf.py=, =towncrier.toml=). Use =python3 -m cogapp=,
+not the =cog=
+binary: that binary is cocogitto. Prose that names the current tag
+(the README, the manual, =packaging/fpm/registry.toml=,
+=examples/downstream/fpm.toml=) is updated in the release commit
+itself. The registry file keeps every older tag, so cogapp does not
+rewrite it.
+
+** Who is listed as an author?
+
+The software authors in =CITATION.cff= are Rohit Goswami
+(=0000-0002-2393-8056=) and Ruhila Goswami (=0000-0002-5443-9356=).
+The preferred citation is the Journal of Chemical Information and
+Modeling paper and keeps that paper's authors. =fpm.toml= and the
+manual name the same two software authors. No affiliation is invented
+for a person who did not already have one.

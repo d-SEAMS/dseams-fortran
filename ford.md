@@ -3,7 +3,7 @@ project: d-SEAMS
 summary: Fortran bindings for the d-SEAMS C API
 project_github: https://github.com/d-SEAMS/dseams-fortran
 project_website: https://docs.dseams.info/
-author: Rohit Goswami
+author: Rohit Goswami, Ruhila Goswami
 author_description: d-SEAMS developers
 license: MIT
 version: 2.14.1

@@ -11,10 +11,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from seo import sphinx_build_finished
 
 project = "dseams"
-author = "d-SEAMS developers"
+author = "Rohit Goswami, Ruhila Goswami"
 copyright = "2018, d-SEAMS developers"
+# [[[cog import dseams_version as v; cog.outl(f'version = "{v.VERSION}"'); cog.outl(f'release = "{v.VERSION}"')]]]
 version = "2.14.1"
 release = "2.14.1"
+# [[[end]]]
 
 extensions = ["myst_parser"]
 source_suffix = {

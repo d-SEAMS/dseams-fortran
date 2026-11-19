@@ -157,15 +157,8 @@ CI builds seams-core tag `v2.14.1` on `d-SEAMS/seams-core`, named by
 `SEAMS_CORE_REPOSITORY` and `SEAMS_CORE_REF` in
 `.github/workflows/ci.yml`.
 
-Releases go in this order:
-
-1. seams-core tags `vX.Y.Z` on d-SEAMS/seams-core.
-2. This repository moves `SEAMS_CORE_REF` to that tag, sets the version in
-   `fpm.toml` and `meson.build`, folds `changelog.d/` into
-   `CHANGELOG.md` with `towncrier build --version X.Y.Z`, and tags
-   `vX.Y.Z` once CI passes.
-3. The fpm registry entry from `packaging/fpm/registry.toml` goes to
-   fortran-lang/fpm-registry, naming that tag.
+Releases follow
+[docs/orgmode/contributing/developer/release.org](docs/orgmode/contributing/developer/release.org).
 
 ## License
 

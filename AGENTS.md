@@ -91,9 +91,11 @@ fpm build --dump fpm_model.json && fpm publish --show-upload-data
 ford ford.md
 ```
 
-`fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok` and
+`fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok`,
 the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
-0 0 0`. Meson runs seven tests, including the one-file build of `seams.f90`.
+0 0 0`, and from `readers` the lines `has_chemfiles`, `has_readcon`,
+`read` or `skip` for `con`, `pdb` and `gro`, then `fortran readers ok`.
+Meson runs eight tests, including the one-file build of `seams.f90`.
 
 Every check must pass before a change is called done. Fix the code under
 test; do not skip, comment out, loosen or delete a test to get there. A test
@@ -131,15 +133,9 @@ says so.
 
 ## Releases
 
-The package version is the seams-core version it binds.
-
-1. seams-core tags the release (`vX.Y.Z` on d-SEAMS/seams-core).
-2. Here: set `SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core` and
-   `SEAMS_CORE_REF: vX.Y.Z` in `.github/workflows/ci.yml`, set `version` in
-   `fpm.toml`, `meson.build` and `CITATION.cff` to `X.Y.Z`, update the tag in
-   `packaging/fpm/registry.toml`, the README and `examples/downstream`, run
-   `towncrier build --version X.Y.Z`, and wait for CI on that commit.
-3. Tag `vX.Y.Z` here.
-4. Open the fortran-lang/fpm-registry pull request with the stanza from
-   `packaging/fpm/registry.toml`, or `fpm publish` once the registry
-   accepts uploads for the package.
+The package version is the seams-core version it binds. The path from a
+clean clone to a published release is
+`docs/orgmode/contributing/developer/release.org`. Follow that file.
+`changelog.d/` holds the towncrier fragments, `cog.toml` drives the
+version commit and the `v` tag, and `ci/version/files.txt` lists the
+copies cogapp rewrites from `fpm.toml`.
