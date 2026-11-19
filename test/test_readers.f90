@@ -14,10 +14,27 @@ program test_readers
   integer(seams_int), parameter :: n_pdb = 1_seams_int
   integer(seams_int), parameter :: n_gro = 1_seams_int
 
+  ! TMPDIR set to a directory that is not there: the probe must fail
+  ! closed, rather than write somewhere else. Both queries are then
+  ! false and every read is skipped.
+  if (tmpdir_missing()) then
+    chem = has_chemfiles()
+    rcon = has_readcon()
+    call print_flag("has_chemfiles", chem)
+    call print_flag("has_readcon", rcon)
+    if (chem .or. rcon) stop 6
+    print "(a)", "skip con"
+    print "(a)", "skip pdb"
+    print "(a)", "skip gro"
+    print "(a)", "fortran readers ok"
+    stop
+  end if
+
   chem = has_chemfiles()
   rcon = has_readcon()
   call print_flag("has_chemfiles", chem)
   call print_flag("has_readcon", rcon)
+  if (stamp_requested()) call require_stamp()
   if (readers_required()) then
     if (.not. chem) stop 2
     if (.not. rcon) stop 3
@@ -57,6 +74,79 @@ contains
     if (value) mark = "T"
     print "(a)", trim(name) // " " // mark
   end subroutine print_flag
+
+  function tmpdir_missing() result(yes)
+    logical :: yes
+    character(len=:), allocatable :: dir
+    integer :: length, stat
+    logical :: ex
+    yes = .false.
+    call get_environment_variable("TMPDIR", length=length, status=stat)
+    if (stat /= 0 .or. length <= 0) return
+    allocate(character(len=length) :: dir)
+    call get_environment_variable("TMPDIR", dir)
+    inquire(file=dir, exist=ex)
+    yes = .not. ex
+  end function tmpdir_missing
+
+  function stamp_requested() result(yes)
+    logical :: yes
+    character(len=16) :: value
+    integer :: length, stat
+    call get_environment_variable("DSEAMS_PROBE_STAMP", value, length, stat)
+    yes = stat == 0 .and. length > 0 .and. value(1:1) == "1"
+  end function stamp_requested
+
+  ! The stamp is one line, the probe path. It has to sit in TMPDIR
+  ! (or TEMP, or TMP, or the working directory, in that order).
+  subroutine require_stamp()
+    character(len=:), allocatable :: dir, line
+    character(len=1024) :: buf
+    integer :: unit, iostat, length, stat
+    logical :: ex
+    call get_environment_variable("TMPDIR", length=length, status=stat)
+    if (stat /= 0 .or. length <= 0) then
+      call get_environment_variable("TEMP", length=length, status=stat)
+    end if
+    if (stat /= 0 .or. length <= 0) then
+      call get_environment_variable("TMP", length=length, status=stat)
+    end if
+    if (stat /= 0 .or. length <= 0) then
+      dir = "."
+    else
+      allocate(character(len=length) :: dir)
+      if (env_is("TMPDIR")) then
+        call get_environment_variable("TMPDIR", dir)
+      else if (env_is("TEMP")) then
+        call get_environment_variable("TEMP", dir)
+      else
+        call get_environment_variable("TMP", dir)
+      end if
+    end if
+    inquire(file=trim(dir) // "/dseams-probe-stamp", exist=ex)
+    if (.not. ex) inquire(file=trim(dir) // "\dseams-probe-stamp", exist=ex)
+    if (.not. ex) stop 6
+    open(newunit=unit, file=trim(dir) // "/dseams-probe-stamp", status="old", &
+      action="read", iostat=iostat)
+    if (iostat /= 0) then
+      open(newunit=unit, file=trim(dir) // "\dseams-probe-stamp", status="old", &
+        action="read", iostat=iostat)
+    end if
+    if (iostat /= 0) stop 6
+    read(unit, "(a)", iostat=iostat) buf
+    close(unit, status="delete")
+    if (iostat /= 0) stop 6
+    line = trim(buf)
+    if (index(line, trim(dir)) /= 1) stop 7
+  end subroutine require_stamp
+
+  function env_is(name) result(yes)
+    character(len=*), intent(in) :: name
+    logical :: yes
+    integer :: length, stat
+    call get_environment_variable(name, length=length, status=stat)
+    yes = stat == 0 .and. length > 0
+  end function env_is
 
   function readers_required() result(yes)
     logical :: yes
