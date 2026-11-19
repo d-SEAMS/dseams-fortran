@@ -61,13 +61,10 @@ directory in the build tree. ``fortran_readers_tmpdir_absent`` sets
 ``TMPDIR`` to a path that is not created; the probe falls through and
 a capable build still reports true. ``fortran_readers_cwd`` unsets
 ``TMPDIR``, ``TEMP`` and ``TMP``, and the probe file is in the working
-directory. ``-Dwith_chemfiles`` and
-``-Dwith_readcon`` (``auto``, ``enabled`` or ``disabled``) define
-``SEAMS_HAS_CHEMFILES`` and ``SEAMS_HAS_READCON`` when seams.pc already
-carries them or when the matching pkg-config file is found. They do
-not link those libraries. The macros are informational. The runtime
+directory. This package does not define ``SEAMS_HAS_CHEMFILES`` or
+``SEAMS_HAS_READCON`` and does not link those libraries. The runtime
 query is the mechanism: ``has_chemfiles`` and ``has_readcon`` ask the
-loaded libseams.
+loaded libseams. ``probe_directory`` is where those calls write.
 
 One file
 --------

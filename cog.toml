@@ -1,6 +1,6 @@
 # Cocogitto release driver for dseams-fortran.
 # Prepare:  cog bump --version X.Y.Z   (or --auto / --minor / --major)
-# Hooks write fpm.toml, regenerate the copies in ci/version/files.txt,
+# Hooks regenerate the copies in ci/version/files.txt from fpm.toml,
 # then towncrier builds CHANGELOG.md from changelog.d/.
 # Publishing the tag and the fpm registry entry stays a separate step.
 # See docs/orgmode/contributing/developer/release.org.
@@ -19,10 +19,10 @@ skip_ci = "[skip ci]"
 skip_untracked = false
 branch_whitelist = ["main"]
 
-# fpm.toml is the version a person edits. The sync hook rewrites it,
-# cogapp rewrites the copies, and towncrier folds changelog.d/.
+# version in fpm.toml is the copy a person edits. cogapp rewrites every
+# other copy from it. towncrier folds changelog.d/. Pass cog bump the
+# same version string that fpm.toml already holds.
 pre_bump_hooks = [
-    "python3 ci/version/dseams_version.py sync {{version}}",
     "python3 -m cogapp -I ci/version -r @ci/version/files.txt",
     "towncrier build --yes --version {{version}}",
 ]

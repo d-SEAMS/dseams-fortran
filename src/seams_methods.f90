@@ -19,8 +19,8 @@ submodule (seams) seams_methods
     kind_cages, kind_topo, kind_brine
   implicit none
   ! Cached answers of the reader probes. The loaded libseams is the source
-  ! of truth: fpm never sees seams.pc, and the SEAMS_HAS_* macros meson
-  ! passes on are informational. The probe file goes in the first of
+  ! of truth: fpm never sees seams.pc, and this package does not compile
+  ! in SEAMS_HAS_* macros. The probe file goes in the first of
   ! TMPDIR, TEMP, TMP and the working directory that can be written.
   logical, save :: chem_known = .false.
   logical, save :: chem_value = .false.
@@ -1171,6 +1171,10 @@ contains
     con_known = .true.
     yes = con_value
   end procedure has_readcon
+
+  module procedure probe_directory
+    dir = temp_directory()
+  end procedure probe_directory
 
   ! First directory that can take a file. A set but missing or
   ! unwritable TMPDIR falls through to TEMP, then TMP, then the

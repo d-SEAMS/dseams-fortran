@@ -193,6 +193,8 @@ module seams
   public :: has_chemfiles
   !> True when the loaded libseams reads EON CON files through readcon-core.
   public :: has_readcon
+  !> Directory where has_chemfiles and has_readcon write their probe file.
+  public :: probe_directory
 
   public :: assignment(=)
   interface assignment(=)
@@ -258,6 +260,13 @@ module seams
     !! The result is cached. A build of this package does not decide it.
     module function has_readcon() result(yes)
       logical :: yes
+    end function
+
+    !> The directory `has_chemfiles` and `has_readcon` write into.
+    !! Empty when `TMPDIR`, `TEMP`, `TMP` and the working directory are
+    !! all missing or unwritable.
+    module function probe_directory() result(dir)
+      character(len=:), allocatable :: dir
     end function
 
     !> `xyz` has shape `(3, n)`. Lengths are angstrom. The origin defaults to zero.

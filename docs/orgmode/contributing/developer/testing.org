@@ -48,14 +48,10 @@ exist. The probe falls through, so a capable build still reports true.
 file is in the working directory. The one-file test compiles the root
 =seams.f90=, which includes every module.
 
-=-Dwith_chemfiles= and =-Dwith_readcon= take =auto=, =enabled= or
-=disabled=. =auto= leaves the build working when the library is absent.
-=enabled= fails configuration when neither =seams.pc= nor the library's
-own pkg-config file provides the macro. The macros are
-=-DSEAMS_HAS_CHEMFILES= and =-DSEAMS_HAS_READCON=. Those macros are
-informational. The runtime query is the mechanism. The Fortran library
-does not link =libchemfiles= or =libreadcon_core=; =libseams= already
-does when it was built with them.
+This package's Meson build has no reader options. It does not pass
+=SEAMS_HAS_CHEMFILES= or =SEAMS_HAS_READCON=. The runtime query is
+the mechanism. The Fortran library does not link =libchemfiles= or
+=libreadcon_core=; =libseams= already does when it was built with them.
 
 ** A job that must not skip
 

@@ -67,42 +67,6 @@ contains
     yes = stat == 0 .and. length > 0 .and. value(1:1) == "1"
   end function stamp_requested
 
-  ! Same fall-through as the library: the first of TMPDIR, TEMP, TMP
-  ! and the working directory that accepts a file.
-  function chosen_probe_dir() result(dir)
-    character(len=:), allocatable :: dir
-    dir = writable_env("TMPDIR")
-    if (len(dir) > 0) return
-    dir = writable_env("TEMP")
-    if (len(dir) > 0) return
-    dir = writable_env("TMP")
-    if (len(dir) > 0) return
-    dir = "."
-  end function chosen_probe_dir
-
-  function writable_env(name) result(dir)
-    character(len=*), intent(in) :: name
-    character(len=:), allocatable :: dir
-    character(len=:), allocatable :: raw
-    integer :: length, stat, unit, iostat
-    call get_environment_variable(name, length=length, status=stat)
-    if (stat /= 0 .or. length <= 0) then
-      dir = ""
-      return
-    end if
-    allocate(character(len=length) :: raw)
-    call get_environment_variable(name, raw)
-    raw = normalize_dir(raw)
-    open(newunit=unit, file=join_dir(raw, "dseams-readers-try"), status="replace", &
-      action="write", iostat=iostat)
-    if (iostat /= 0) then
-      dir = ""
-      return
-    end if
-    close(unit, status="delete")
-    dir = raw
-  end function writable_env
-
   function join_dir(dir, name) result(path)
     character(len=*), intent(in) :: dir, name
     character(len=:), allocatable :: path
@@ -130,14 +94,42 @@ contains
     end do
   end function normalize_dir
 
+  function env_raw(name) result(value)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable :: value
+    integer :: length, stat
+    call get_environment_variable(name, length=length, status=stat)
+    if (stat /= 0 .or. length <= 0) then
+      value = ""
+      return
+    end if
+    allocate(character(len=length) :: value)
+    call get_environment_variable(name, value)
+  end function env_raw
+
   ! The stamp is one line, the probe path. It has to sit in the
-  ! directory the fall-through selected.
+  ! directory probe_directory() returns. A present, writable TMPDIR
+  ! is that directory. A TMPDIR that does not exist is not. With
+  ! TMPDIR, TEMP and TMP all unset, the directory is the working
+  ! directory.
   subroutine require_stamp()
-    character(len=:), allocatable :: dir, line, stamp
+    character(len=:), allocatable :: dir, line, stamp, tmp
     character(len=1024) :: buf
     integer :: unit, iostat
     logical :: ex
-    dir = chosen_probe_dir()
+    dir = probe_directory()
+    if (len(dir) == 0) stop 6
+    tmp = env_raw("TMPDIR")
+    if (len(tmp) > 0) then
+      inquire(file=tmp, exist=ex)
+      if (ex) then
+        if (normalize_dir(dir) /= normalize_dir(tmp)) stop 8
+      else if (normalize_dir(dir) == normalize_dir(tmp)) then
+        stop 8
+      end if
+    else if (len(env_raw("TEMP")) == 0 .and. len(env_raw("TMP")) == 0) then
+      if (dir /= ".") stop 8
+    end if
     stamp = join_dir(dir, "dseams-probe-stamp")
     inquire(file=stamp, exist=ex)
     if (.not. ex) stop 6
