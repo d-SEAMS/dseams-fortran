@@ -228,6 +228,29 @@ if not meson.is_subproject()
   )
   test('fortran_one_file', one_file, args: [root], env: fortran_env, timeout: 180)
 
+  doc_seams_libdir = ''
+  if seams_pc.found()
+    doc_seams_libdir = seams_pc.get_variable(pkgconfig: 'libdir', default_value: '')
+  endif
+  if doc_seams_libdir == ''
+    doc_seams_libdir = ','.join(get_option('seams_libdir'))
+  endif
+  doc_python = find_program('python3')
+  cc = meson.get_compiler('c')
+  test(
+    'fortran_doc_build',
+    doc_python,
+    args: [
+      files('test/check_doc_build.py'),
+      root,
+      fc.cmd_array()[0],
+      cc.cmd_array()[0],
+      doc_seams_libdir,
+    ],
+    env: fortran_env,
+    timeout: 180,
+  )
+
   seams_lang_dep = dependency('seams-lang', version: '>=2.14.1', required: false)
   if seams_lang_dep.found()
     seams_lang_dep = seams_lang_dep.partial_dependency(links: true, link_args: true)

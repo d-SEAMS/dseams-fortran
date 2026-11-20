@@ -55,7 +55,7 @@ A parent project calls ``subproject('dseams-fortran')`` and then
 ``fortran_capi``, ``fortran_check``, ``fortran_high``,
 ``fortran_readers``, ``fortran_readers_tmpdir``,
 ``fortran_readers_tmpdir_absent``, ``fortran_readers_cwd``,
-``fortran_one_file``, ``fortran_lang_tasks``, ``fortran_cubic`` and
+``fortran_one_file``, ``fortran_doc_build``, ``fortran_lang_tasks``, ``fortran_cubic`` and
 ``fortran_minimal``. ``fortran_readers_tmpdir`` sets ``TMPDIR`` to a
 directory in the build tree. ``fortran_readers_tmpdir_absent`` sets
 ``TMPDIR`` to a path that is not created; the probe falls through and
@@ -70,14 +70,16 @@ One file
 --------
 
 ``seams.f90`` at the repository root includes every module in
-dependency order:
+dependency order, and ``src/dseams_once.c`` provides the C11
+once-guard and atomic probe helpers:
 
 .. code-block:: bash
 
+   cc -c src/dseams_once.c
    gfortran -c seams.f90
-   gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams -Wl,-rpath,"$SEAMS_LIB_DIR"
+   gfortran your_program.f90 seams.o dseams_once.o -L"$SEAMS_LIB_DIR" -lseams -Wl,-rpath,"$SEAMS_LIB_DIR"
 
-fpm and meson compile ``src/`` and must not also compile this file.
+fpm and meson compile ``src/`` and must not also compile ``seams.f90``.
 Linking ``example/cubic.f90`` this way prints the census on the
 `API page <../../api/fortran.html>`_, starting ``version 2.14.1``.
 
@@ -90,6 +92,7 @@ uses only that module:
 .. code-block:: bash
 
    mkdir -p build/fmod
+   cc -c src/dseams_once.c -o build/fmod/dseams_once.o
    gfortran -Jbuild/fmod -c src/seams_kinds.f90 -o build/fmod/seams_kinds.o
    gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_c.f90 -o build/fmod/seams_c.o
    gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_support.f90 -o build/fmod/seams_support.o
@@ -100,7 +103,7 @@ uses only that module:
    build/test_seams "$PWD"
 
 A program that uses ``seams`` links ``seams_kinds.o``,
-``seams_c.o``, ``seams_support.o``, ``seams.o`` and
-``seams_methods.o``, in that order. Set ``LD_LIBRARY_PATH`` to the
-directory that holds ``libseams.so`` when that library does not find
-``libyodaLib.so`` on its own.
+``seams_c.o``, ``seams_support.o``, ``seams.o``,
+``seams_methods.o`` and ``dseams_once.o``, in that order. Set
+``LD_LIBRARY_PATH`` to the directory that holds ``libseams.so`` when
+that library does not find ``libyodaLib.so`` on its own.

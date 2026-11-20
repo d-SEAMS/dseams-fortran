@@ -98,11 +98,12 @@ A parent project calls `subproject('dseams-fortran')` and then
 ## Single file
 
 `seams.f90` includes every module source in dependency order, for a
-build that compiles one file:
+build that compiles one Fortran file alongside the C once-guard:
 
 ```bash
+cc -c src/dseams_once.c
 gfortran -c seams.f90
-gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams
+gfortran your_program.f90 seams.o dseams_once.o -L"$SEAMS_LIB_DIR" -lseams
 ```
 
 ## Documentation

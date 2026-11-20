@@ -105,14 +105,18 @@ the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
 `feature_query` prints the same two feature-query lines from a
 standalone consumer and `fortran feature query ok`; it does not build
 against a `seams.mod` from before `has_chemfiles` existed.
-`thread_safety` spawns sixteen POSIX threads that all call
-`has_chemfiles` and `has_readcon` at once and prints `fortran thread
-safety ok` once every thread agrees with a single-threaded baseline.
-`no_lock_symlink` plants a symlink at the once-guard's old lock-file
-name, pointing at a file with known content, runs the real probe, and
-checks that file is untouched, printing `fortran no lock symlink ok`.
-Meson runs fourteen tests, including the one-file build of `seams.f90`
-and three `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
+`thread_safety` spawns sixteen POSIX threads that start at a barrier
+with no warm-up, call `has_chemfiles` and `has_readcon` in alternating
+orders, and prints `fortran thread safety ok` once every thread agrees
+with a post-join call.
+`no_lock_symlink` plants symlinks at the once-guard's old lock-file
+name and at a probe path via `symlink(2)`, runs `dseams_probe_write`
+and the real probe, and checks the victim file is untouched, printing
+`fortran no lock symlink ok`.
+Meson runs fifteen tests, including the one-file build of `seams.f90`,
+a `fortran_doc_build` check that compiles and links the documented
+commands from `README.md` and `docs/user-guide/howto/build.rst`, and
+three isolated `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
 
 Every check must pass before a change is called done. Fix the code under
 test; do not skip, comment out, loosen or delete a test to get there. A test

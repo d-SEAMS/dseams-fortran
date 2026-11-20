@@ -27,21 +27,20 @@ print =dseams fortran ok=, =fortran ok=, =fortran high ok= and the
 of =has_chemfiles=, =has_readcon= and =probe_directory= that reads no
 trajectory; it exists to fail a build against a =seams.mod= from
 before those three were public, and prints =fortran feature query ok=.
-=thread_safety= calls =has_chemfiles= and =has_readcon= from sixteen
-POSIX threads at once (through =iso_c_binding= and =pthread_create=,
-linked with =link = ["pthread"]= on the =thread_safety= test alone in
-=fpm.toml=, not on the library) and prints =fortran thread safety ok=
-once every thread's answer matches a single-threaded call made before
-any thread started. =no_lock_symlink= plants a symlink named
-=dseams-probe.lock=, an old, no longer used lock-file name, next to a
-file with known content, in the directory =probe_directory= reports,
-then runs =has_chemfiles= and =has_readcon= and checks that file is
-unchanged, printing =fortran no lock symlink ok= only when that check
-actually ran. Without a writable probe directory or without =ln(1)=
-to plant the symlink, the check cannot run at all; outside =CI= that
-is a skip (=STOP 77=, the GNU/automake convention meson's test harness
-already reports as SKIP, not a pass) and under =CI= it is a hard
-failure, since the CI image is expected to have both. See
+=thread_safety= starts sixteen POSIX threads at a barrier with no
+warm-up, calls =has_chemfiles= and =has_readcon= in alternating orders
+across threads, and prints =fortran thread safety ok= once every
+thread's answer matches a post-join call. =no_lock_symlink= plants
+symlinks named =dseams-probe.lock= (an old, no longer used lock-file
+name) and a probe candidate path next to a victim file with known
+content via POSIX =symlink(2)=, checks that =dseams_probe_write=
+refuses the symlink, runs =has_chemfiles= and =has_readcon=, and
+checks the victim is unchanged, printing =fortran no lock symlink ok=
+only when that check actually ran. Without a writable probe directory
+or without =symlink(2)= support, the check cannot run at all; outside
+=CI= that is a skip (=STOP 77=, the GNU/automake convention meson's
+test harness already reports as SKIP, not a pass) and under =CI= it is
+a hard failure, since the CI image is expected to have both. See
 =docs/orgmode/contributing/developer/faq.org=.
 
 The CON read runs only when =has_readcon= is true. The PDB and GRO reads
@@ -56,19 +55,22 @@ meson setup build/meson -Dseams_libdir="$PREFIX/lib"
 meson test -C build/meson --print-errorlogs
 #+end_src
 
-Fourteen tests: =fortran_capi=, =fortran_check=, =fortran_high=,
+Fifteen tests: =fortran_capi=, =fortran_check=, =fortran_high=,
 =fortran_readers=, =fortran_readers_tmpdir=,
 =fortran_readers_tmpdir_absent=, =fortran_readers_cwd=,
 =fortran_feature_query=, =fortran_thread_safety=,
-=fortran_no_lock_symlink=, =fortran_one_file=, =fortran_lang_tasks=,
-=fortran_cubic=, =fortran_minimal=.
-=fortran_readers_tmpdir= sets =TMPDIR= to a
-directory in the build tree and checks the probe file landed there.
+=fortran_no_lock_symlink=, =fortran_one_file=, =fortran_doc_build=,
+=fortran_lang_tasks=, =fortran_cubic=, =fortran_minimal=.
+=fortran_readers_tmpdir= sets =TMPDIR= to a directory in the build
+tree and checks the probe file landed there.
 =fortran_readers_tmpdir_absent= sets =TMPDIR= to a path that does not
 exist. The probe falls through, so a capable build still reports true.
 =fortran_readers_cwd= unsets =TMPDIR=, =TEMP= and =TMP=, and the probe
-file is in the working directory. The one-file test compiles the root
-=seams.f90=, which includes every module.
+file is in the working directory. Each variant runs in its own isolated
+working directory with its own stamp name. The one-file test compiles
+the root =seams.f90=, which includes every module, and
+=fortran_doc_build= compiles and links the literal commands documented
+in =README.md= and =docs/user-guide/howto/build.rst=.
 
 This package's Meson build has no reader options. It does not pass
 =SEAMS_HAS_CHEMFILES= or =SEAMS_HAS_READCON=. The runtime query is

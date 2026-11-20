@@ -91,9 +91,9 @@ untouched.
 Neither primitive was ever answering a real need, which both earlier
 revisions missed: the cached answer (=chem_cached=/=con_cached= in
 =src/seams_methods.f90=) is a plain Fortran module variable, private to
-one process's address space, and =probe_path= names its trial file
-from =system_clock= plus a per-attempt counter, unique to the run that
-picked it; any number of unrelated processes sharing the same
+one process's address space, and =create_probe_dir= names a private
+=0700= subdirectory from =system_clock= plus a per-attempt counter,
+unique to the run that picked it; any number of unrelated processes sharing the same
 directory, probing at the same moment, never collide on that name. The
 race this guards against, and the one =test/test_thread_safety.f90=
 exercises, is entirely a same-process, multiple-thread race. No two
@@ -101,11 +101,13 @@ processes coordinating through a shared file, the one thing a
 cross-process primitive like =flock= is for, were ever part of the
 problem.
 
-What this package ships instead, in =src/dseams_once.c=, is a plain
-in-process compare-and-swap on a C11 =<stdatomic.h>= =atomic_int=:
-three states, 0 for untouched, 1 for a thread running the guarded
-section, 2 for done, with every other caller spinning on an atomic
-load until it sees 2. Each spin iteration yields the CPU first
+What this package ships instead, in =src/dseams_once.c=, is a C-owned
+static =<stdatomic.h>= =atomic_int= (accessed only through
+=dseams_once_enter=, =dseams_once_done= and =dseams_once_state=, never
+aliased as a plain Fortran integer) shared by both =has_chemfiles= and
+=has_readcon=: three states, 0 for untouched, 1 for a thread running
+both probes sequentially, 2 for done, with every other caller spinning
+on an atomic load until it sees 2. Each spin iteration yields the CPU first
 (=thrd_yield= from C11 =<threads.h>= where =__has_include= finds it,
 =sched_yield= or =SwitchToThread= otherwise), so a loser thread does
 not hold a core at full load for however long the one winner's probe
@@ -125,20 +127,19 @@ into the library any more; only =test/test_thread_safety.f90=, which
 spawns real POSIX threads to exercise this, still does, through its
 own =link = ["pthread"]= stanza.
 
-Once a feature's probe has run, its answer is cached in a module
-variable, same as before; only the single guarded run writes it, and
+Once the shared probe has run, both answers are cached in module
+variables, same as before; only the single guarded run writes them, and
 the guard's release, a C11 release-store observed by an acquire-load,
-is what makes that write visible to every later caller without a
+is what makes those writes visible to every later caller without a
 separate lock. =test/test_thread_safety.f90= spawns sixteen POSIX
-threads that call both queries at once through =iso_c_binding= and
-checks every one agrees with a single-threaded call made before any
-thread started; it has run five hundred times in a row on gfortran and
-on flang, with zero failures.
+threads behind a pthread barrier with no warm-up, alternates the call
+order of =has_chemfiles= and =has_readcon= across threads, and checks
+every thread agrees with a post-join call.
 
 ** Why are temp_directory, join_dir and friends subroutines, not functions?
 
 =temp_directory=, =usable_env=, =normalize_dir=, =join_dir=,
-=env_string= and =probe_path= in =src/seams_methods.f90=, and
+=env_string= and =create_probe_dir= in =src/seams_methods.f90=, and
 =c_to_f= and =copy_key= in =src/seams_support.f90=, each take an
 allocatable =intent(out)= argument and return nothing, rather than
 returning a =character(len=:), allocatable= function result the way
