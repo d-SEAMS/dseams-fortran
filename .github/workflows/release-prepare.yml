@@ -1,0 +1,102 @@
+name: Release prepare (cog dry-run)
+# A dry run of docs/orgmode/contributing/developer/release.org, so a
+# pull request that touches the release machinery proves the hooks
+# still run clean before anyone bumps a real version. It bumps
+# nothing and pushes nothing.
+on:
+  pull_request:
+    paths:
+      - cog.toml
+      - towncrier.toml
+      - changelog.d/**
+      - ci/version/**
+      - fpm.toml
+      - meson.build
+      - CITATION.cff
+      - docs/conf.py
+      - ford.md
+      - CHANGELOG.md
+      - .github/workflows/release-prepare.yml
+      - .github/workflows/ci.yml
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: SemVer component for the cog bump dry-run
+        type: choice
+        default: auto
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-prepare-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: cogapp and towncrier
+        run: pipx install cogapp && pipx install towncrier
+      # cocogitto's own build needs rustc >=1.88 (edition2024); take the
+      # released musl binary instead of a cargo build on whatever rustc
+      # the runner ships. The sha256 below is the release asset's own
+      # digest, as GitHub's Releases API reports it for this tag
+      # (api.github.com/repos/cocogitto/cocogitto/releases/tags/7.0.0),
+      # matching a direct download hashed with sha256sum. Bump both the
+      # version and this hash together; a mismatch fails the step.
+      - name: cocogitto (cog)
+        env:
+          COG_VERSION: "7.0.0"
+          COG_ASSET: cocogitto-7.0.0-x86_64-unknown-linux-musl.tar.gz
+          # The tarball extracts under this directory, not into cwd.
+          COG_EXTRACT_DIR: x86_64-unknown-linux-musl
+          COG_SHA256: e03938ff2c4c86d71c00c0f3284dbbe95c5ca76fe34a51f33e945c23010d59bb
+        run: |
+          set -euo pipefail
+          curl -sSL -o cog.tar.gz \
+            "https://github.com/cocogitto/cocogitto/releases/download/${COG_VERSION}/${COG_ASSET}"
+          echo "${COG_SHA256}  cog.tar.gz" | sha256sum -c -
+          tar -xzf cog.tar.gz
+          install -d -m 0755 "$HOME/.local/bin"
+          install -m 0755 "${COG_EXTRACT_DIR}/cog" "$HOME/.local/bin/cog"
+          rm -rf cog.tar.gz "${COG_EXTRACT_DIR}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cog" --version
+      - name: cogapp --check (ci/version/files.txt copies agree with fpm.toml)
+        run: "$(pipx environment --value PIPX_LOCAL_VENVS)/cogapp/bin/cog" -I ci/version --check @ci/version/files.txt
+      - name: Towncrier draft (fragments must build cleanly)
+        run: towncrier build --draft --version 0.0.0-dry-run
+      - name: Cog check (conventional commits since the last tag)
+        run: cog check --ignore-merge-commits --from-latest-tag
+      # cog.toml's branch_whitelist is ["main"], and a PR checkout is on
+      # the PR's own branch, never on main, so `cog bump` rejects every
+      # PR unconditionally and for a reason that has nothing to do with
+      # whether the PR's release-machinery changes are sound. Running it
+      # here and swallowing a non-zero exit "because that's expected on a
+      # PR" would also swallow a real failure were there one, since both
+      # look identical from this step's exit code; that is the masking
+      # this project does not ship. So a `pull_request` run does not
+      # attempt a bump dry-run at all: cogapp --check, the towncrier
+      # draft and cog check above already exercise the hooks and the
+      # commit history without needing a branch_whitelist pass. Only
+      # workflow_dispatch, which runs on main by default where cog bump
+      # can actually succeed, runs it, and does not catch its failure.
+      - if: github.event_name == 'workflow_dispatch'
+        name: Cog bump dry-run (workflow_dispatch component, on main)
+        run: |
+          case "${{ inputs.bump }}" in
+            auto) cog bump --dry-run --auto ;;
+            patch) cog bump --dry-run --patch ;;
+            minor) cog bump --dry-run --minor ;;
+            major) cog bump --dry-run --major ;;
+          esac

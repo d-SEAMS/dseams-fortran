@@ -6,7 +6,9 @@ project_website: https://docs.dseams.info/
 author: Rohit Goswami
 author_description: d-SEAMS developers
 license: MIT
+cog: [[[cog import tomllib; from pathlib import Path; v = tomllib.load(Path("fpm.toml").open("rb"))["version"]; cog.outl("version: " + v)]]]
 version: 2.14.1
+endcog: [[[end]]]
 src_dir: ./src
 exclude_dir: ./example
              ./test

@@ -13,8 +13,10 @@ from seo import sphinx_build_finished
 project = "dseams"
 author = "d-SEAMS developers"
 copyright = "2018, d-SEAMS developers"
+# [[[cog import tomllib; from pathlib import Path; v = tomllib.load(Path("fpm.toml").open("rb"))["version"]; cog.outl(f'version = "{v}"'); cog.outl(f'release = "{v}"')]]]
 version = "2.14.1"
 release = "2.14.1"
+# [[[end]]]
 
 extensions = ["myst_parser"]
 source_suffix = {

@@ -29,7 +29,7 @@ language-front ABI (`libseams_lang`) live in
 | `src/seams_support.f90` | Reference-counted handle box; not public API |
 | `src/seams.f90`, `src/seams_methods.f90` | `seams`, the derived-type API, and its submodule |
 | `seams.f90` | Includes every `src/` file in order, for a one-file build. fpm and meson must not compile it with `src/` |
-| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90` |
+| `test/` | `check_dseams.f90`, `test_capi.f90`, `test_high.f90`, `lang_tasks.f90`, `test_readers.f90`, `test_feature_query.f90`, `test_thread_safety.f90`, `test_no_lock_symlink.f90` |
 | `example/` | `cubic.f90` and `minimal.f90`, run as fpm examples and meson tests |
 | `examples/downstream/` | A separate fpm project with a path dependency on this one |
 | `input/` | Trajectories the tests read, copied from seams-core |
@@ -42,8 +42,15 @@ language-front ABI (`libseams_lang`) live in
 
 ## How the build finds libseams
 
-Neither build compiles C or C++. Both link `-lseams`, and the `lang_tasks`
-test also links `-lseams_lang`.
+Neither build compiles the engine's C or C++. Both link `-lseams`, and the
+`lang_tasks` test also links `-lseams_lang`. The one exception is
+`src/dseams_once.c`: a few lines of `<stdatomic.h>`, owned by this
+repository, not vendored from seams-core, giving the probe's once-guard
+(`has_chemfiles`/`has_readcon`, `src/seams_methods.f90`) an in-process
+compare-and-swap with no OS-specific static initializer and no lock file.
+Both fpm (which picks up a `.c` file placed in `src/` on its own) and
+meson (`add_languages('c')`, a small `static_library` the Fortran library
+links) compile it.
 
 - fpm: `FPM_LDFLAGS` carries the search path and the rpath. With an
   installed prefix,
@@ -91,9 +98,25 @@ fpm build --dump fpm_model.json && fpm publish --show-upload-data
 ford ford.md
 ```
 
-`fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok` and
+`fpm test` prints `dseams fortran ok`, `fortran ok`, `fortran high ok`,
 the `lang_tasks` line `pairs 512 rings 0 0 0 0 0 0 256 chill 0 128 0 0 0 0
-0 0 0`. Meson runs seven tests, including the one-file build of `seams.f90`.
+0 0 0`, and from `readers` the lines `has_chemfiles`, `has_readcon`,
+`read` or `skip` for `con`, `pdb` and `gro`, then `fortran readers ok`.
+`feature_query` prints the same two feature-query lines from a
+standalone consumer and `fortran feature query ok`; it does not build
+against a `seams.mod` from before `has_chemfiles` existed.
+`thread_safety` spawns sixteen POSIX threads that start at a barrier
+with no warm-up, call `has_chemfiles` and `has_readcon` in alternating
+orders, and prints `fortran thread safety ok` once every thread agrees
+with a post-join call.
+`no_lock_symlink` plants symlinks at the once-guard's old lock-file
+name and at a probe path via `symlink(2)`, runs `dseams_probe_write`
+and the real probe, and checks the victim file is untouched, printing
+`fortran no lock symlink ok`.
+Meson runs fifteen tests, including the one-file build of `seams.f90`,
+a `fortran_doc_build` check that compiles and links the documented
+commands from `README.md` and `docs/user-guide/howto/build.rst`, and
+three isolated `readers` runs that vary `TMPDIR`, `TEMP` and `TMP`.
 
 Every check must pass before a change is called done. Fix the code under
 test; do not skip, comment out, loosen or delete a test to get there. A test
@@ -131,15 +154,9 @@ says so.
 
 ## Releases
 
-The package version is the seams-core version it binds.
-
-1. seams-core tags the release (`vX.Y.Z` on d-SEAMS/seams-core).
-2. Here: set `SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core` and
-   `SEAMS_CORE_REF: vX.Y.Z` in `.github/workflows/ci.yml`, set `version` in
-   `fpm.toml`, `meson.build` and `CITATION.cff` to `X.Y.Z`, update the tag in
-   `packaging/fpm/registry.toml`, the README and `examples/downstream`, run
-   `towncrier build --version X.Y.Z`, and wait for CI on that commit.
-3. Tag `vX.Y.Z` here.
-4. Open the fortran-lang/fpm-registry pull request with the stanza from
-   `packaging/fpm/registry.toml`, or `fpm publish` once the registry
-   accepts uploads for the package.
+The package version is the seams-core version it binds. The path from a
+clean clone to a published release is
+`docs/orgmode/contributing/developer/release.org`. Follow that file.
+`changelog.d/` holds the towncrier fragments, `cog.toml` drives the
+version commit and the `v` tag, and `ci/version/files.txt` lists the
+copies cogapp rewrites from `fpm.toml`.

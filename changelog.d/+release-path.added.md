@@ -1,0 +1,1 @@
+A documented, tested release path: `cog.toml` and `towncrier.toml` drive a `cog bump`, `ci/version/files.txt` lists every copy of the version for `python3 -m cogapp` to rewrite, and `docs/orgmode/contributing/developer/release.org` gives the exact steps. A pull request that touches that machinery gets a `release-prepare` dry run.

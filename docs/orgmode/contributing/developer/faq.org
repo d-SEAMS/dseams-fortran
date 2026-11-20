@@ -1,0 +1,227 @@
+#+TITLE: Developer FAQ
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Developer FAQ
+
+** Why do has_chemfiles and has_readcon read a file?
+
+=seams.h= has no feature query. The =seams= executable's =--features=
+flag is compiled into that program, not into =libseams=, and fpm does
+not pass the =Cflags= from =seams.pc=. The loaded library is what a
+user actually calls. Each query writes one small file in the first of
+=TMPDIR=, =TEMP=, =TMP= and the working directory that can be written.
+A directory that is set but missing or unwritable is skipped. When
+none of them can be written, the query is false and one diagnostic is
+printed. Otherwise the query reads that file with =frame%read=. True
+means the call succeeded and the frame held at least one atom, so a
+broken probe cannot claim the reader exists. The probe itself runs at
+most once per process; see the next entry for why, and for the
+guarantee that gives a concurrent caller.
+
+** Are has_chemfiles and has_readcon safe to call from more than one thread?
+
+Yes. The probe behind each one runs behind an in-process once-guard
+(=dseams_once_enter=/=dseams_once_done= in =src/dseams_once.c=), so
+only one caller ever runs it and every other caller, including every
+thread that called at the same moment, blocks until that run finishes.
+
+An earlier version cached its answer in a module-level "known"/"value"
+pair, set by whichever caller ran the probe first. That is two
+separate writes with no ordering guarantee between them: a second
+thread could observe "known" already true while "value" still held
+its unset default, which is a real race on the very first call after
+the library loads. Making the probe compute fresh on every call
+instead, with no module state at all, does not fix this by itself:
+the probe ends in a call to =frame%read=, which this package neither
+builds nor controls, and nothing says it tolerates two threads calling
+it at once. Sixteen threads probing with no caching at all reproduced
+exactly that: one caller's probe reported false while every other
+caller, running at the same moment, reported true, intermittently,
+roughly one run in thirty.
+
+The fix is not a lock around the old pair either. =fpm.toml= has no
+manifest field that forces =-fopenmp= on every build of this package;
+only the fpm CLI's =--flag= or the =FPM_FFLAGS= environment variable
+can add it, and neither is part of a plain =fpm build= or =fpm test=.
+An =!$omp critical= section would silently compile down to a no-op
+comment block on that plain build, so a caller who never set those
+would still race, with no sign anything had been "protected". That is
+a silent fallback, which this project does not ship.
+
+** Why a C11 once-guard, and not pthread_once or a lock file?
+
+Two earlier revisions of this fix, in order, tried the two obvious
+POSIX primitives and rejected both.
+
+The first used =pthread_once=: the POSIX primitive built for exactly
+this, running an init routine exactly once no matter how many threads
+call it concurrently, and blocking every caller, including the ones
+that lose the race to run it, until that one run returns. Its
+once-control needs no runtime setup, which matters because setting one
+up would just move the race: a Fortran =integer(c_int), save, target=
+initialised to 0 is a compile-time constant, and on the glibc this
+project's CI links against, an all-zero =pthread_once_t= is byte for
+byte =PTHREAD_ONCE_INIT=. That equality is a property of this one
+glibc, checked against its own =<pthread.h>=, not a POSIX guarantee for
+every platform, and false on macOS on purpose: Darwin's
+=PTHREAD_ONCE_INIT=, like its mutex and rwlock initializers, is a
+non-zero signature word, specifically so that a zero-initialised,
+never-set-up instance is invalid rather than silently working.
+
+The second revision serialised the probe behind an exclusive
+=flock(2)= on a file from a live =creat(2)= call instead, reasoning
+that a file descriptor is a plain integer the kernel hands back, not a
+static struct with a vendor-chosen byte pattern, so there would be
+nothing platform-specific left to get wrong. That traded one real
+problem for a worse one: =creat(2)= follows a symlink and truncates
+its target (=O_TRUNC=), and the path it opened, a fixed name,
+=dseams-probe.lock=, in the first writable directory of =TMPDIR=,
+=TEMP=, =TMP= or the working directory, was predictable and never
+unlinked. In a shared, world-writable =/tmp=, a second, unrelated
+user on the same machine could plant a symlink at that exact name
+ahead of time, pointing at any file they wanted truncated, and the
+next run of this process would do it for them, no privilege escalation
+needed beyond write access to a world-writable directory every user
+already has. =test/test_no_lock_symlink.f90= is a regression test for
+exactly that: it plants a symlink at the old name, pointing at a file
+with known content, runs the real probe, and checks that file is
+untouched.
+
+Neither primitive was ever answering a real need, which both earlier
+revisions missed: the cached answer (=chem_cached=/=con_cached= in
+=src/seams_methods.f90=) is a plain Fortran module variable, private to
+one process's address space, and =create_probe_dir= names a private
+=0700= subdirectory from =system_clock= plus a per-attempt counter,
+unique to the run that picked it; any number of unrelated processes sharing the same
+directory, probing at the same moment, never collide on that name. The
+race this guards against, and the one =test/test_thread_safety.f90=
+exercises, is entirely a same-process, multiple-thread race. No two
+processes coordinating through a shared file, the one thing a
+cross-process primitive like =flock= is for, were ever part of the
+problem.
+
+What this package ships instead, in =src/dseams_once.c=, is a C-owned
+static =<stdatomic.h>= =atomic_int= (accessed only through
+=dseams_once_enter=, =dseams_once_done= and =dseams_once_state=, never
+aliased as a plain Fortran integer) shared by both =has_chemfiles= and
+=has_readcon=: three states, 0 for untouched, 1 for a thread running
+both probes sequentially, 2 for done, with every other caller spinning
+on an atomic load until it sees 2. Each spin iteration yields the CPU first
+(=thrd_yield= from C11 =<threads.h>= where =__has_include= finds it,
+=sched_yield= or =SwitchToThread= otherwise), so a loser thread does
+not hold a core at full load for however long the one winner's probe
+takes; it is a scheduler hint on the calling thread, not a lock on
+anything, and plants no file. =<stdatomic.h>= is a compiler feature,
+not an OS primitive, so there is no vendor-chosen static initializer
+to get wrong (contrast =PTHREAD_ONCE_INIT= above) and no OS header
+to link against on a target that lacks one (contrast =flock=, a BSD
+extension present on Linux and macOS but absent from a native Windows
+ABI). GCC, Clang (including Apple Clang) and MSVC (from Visual Studio
+2022) all implement it. C11's =<threads.h>= =call_once= was
+deliberately not used instead, despite doing almost exactly this:
+Apple's libc has never implemented C11 =<threads.h>=, and MSVC's
+support for it is recent and inconsistent, where =<stdatomic.h>=
+support is not. Neither =fpm.toml= nor =meson.build= links =pthread=
+into the library any more; only =test/test_thread_safety.f90=, which
+spawns real POSIX threads to exercise this, still does, through its
+own =link = ["pthread"]= stanza.
+
+Once the shared probe has run, both answers are cached in module
+variables, same as before; only the single guarded run writes them, and
+the guard's release, a C11 release-store observed by an acquire-load,
+is what makes those writes visible to every later caller without a
+separate lock. =test/test_thread_safety.f90= spawns sixteen POSIX
+threads behind a pthread barrier with no warm-up, alternates the call
+order of =has_chemfiles= and =has_readcon= across threads, and checks
+every thread agrees with a post-join call.
+
+** Why are temp_directory, join_dir and friends subroutines, not functions?
+
+=temp_directory=, =usable_env=, =normalize_dir=, =join_dir=,
+=env_string= and =create_probe_dir= in =src/seams_methods.f90=, and
+=c_to_f= and =copy_key= in =src/seams_support.f90=, each take an
+allocatable =intent(out)= argument and return nothing, rather than
+returning a =character(len=:), allocatable= function result the way
+they read most naturally. That shape is deliberate, not a style
+choice: on this project's own CI compiler, gfortran 13.3.0, a
+=character(len=:), allocatable= FUNCTION result is not safe to return
+to a caller that is running concurrently, on another thread, with any
+other call anywhere in the process that also returns such a result.
+
+A minimal reproducer needs no =SAVE= variable, no missing =recursive=,
+and no shared state of any kind: two ordinary functions, each doing
+nothing but assign one string literal to its allocatable result, run
+from sixteen real POSIX threads (no OpenMP) with no synchronisation
+between them, corrupt each other's results at a small but repeatable
+rate, up to and including glibc's own allocator aborting with
+"free(): invalid next size". The identical computation, expressed as a
+SUBROUTINE with an allocatable =intent(out)= argument instead of a
+function result, called under the same load, is not affected. Nor is
+a deferred-length allocatable CHARACTER ARRAY function result; see
+=f_to_c= in =src/seams_support.f90=, left as a function, and
+=logs/f3/= in a released verification kit for the full reproducer
+suite and its output.
+
+This explains why an earlier revision's fixed-length, non-allocatable
+buffer workaround for the probe's own lock-directory resolution
+(=lock_env_dir=/=try_lock_in=) is gone rather than kept: once the
+underlying helpers are subroutines with allocatable arguments instead
+of functions with allocatable results, they do not need a fixed-size
+buffer to avoid the defect, because the subroutine shape already does
+that, and they no longer need a filesystem lock to avoid it either, by
+the C11 once-guard explained above. =probe_directory= is public API
+that calls straight into =temp_directory= with no once-guard of its
+own (unlike =has_chemfiles=/=has_readcon=, since it has to report a
+fresh answer on every call, not a cached one), so it is a subroutine
+with an allocatable =intent(out)= argument for the same reason, not a
+function: see =src/seams.f90=.
+
+** Why is the readers test allowed to skip?
+
+A checkout tested against the CI libseams that passes
+=-Dwith_chemfiles=disabled= cannot read PDB or GRO. Failing that test
+there would force every job to vendor chemfiles. The skip is the
+feature query and nothing else. The readers job builds libseams with
+both libraries and sets =DSEAMS_REQUIRE_READERS=1=, so the same test
+fails if it would have skipped.
+
+** Why does this package not compile the readers?
+
+Chemfiles and readcon-core (lode-org/readcon-core) are detected by
+seams-core and linked into =libseams=. Copying either tree here would
+be a second implementation. This package does not define
+=SEAMS_HAS_CHEMFILES= or =SEAMS_HAS_READCON= and does not read them.
+The runtime query is the mechanism. A libseams without those readers
+still builds here, with LAMMPS dump and XYZ.
+
+** Why are towncrier and cocogitto both here?
+
+Towncrier owns =CHANGELOG.md=. Fragments live in =changelog.d/= and
+=towncrier.toml= points at that directory. Cocogitto owns the version
+commit and the =vX.Y.Z= tag. =cog.toml= sets =disable_changelog = true=
+so the two tools do not write the same file. =pre_bump_hooks= run
+=python3 -m cogapp -I ci/version -r @ci/version/files.txt= and then
+=towncrier build --yes --version {{version}}=.
+
+** Where is the version written by hand?
+
+=version= in =fpm.toml=. =python3 -m cogapp= rewrites the copies listed
+in =ci/version/files.txt= (=meson.build=, =CITATION.cff=,
+=docs/conf.py=, =towncrier.toml=, =ford.md=) by reading that line.
+There is no helper script under =ci/version/=. Use =python3 -m cogapp=,
+not the =cog= binary: that binary is cocogitto. =cog bump --version=
+is given the same string. Prose that names the current tag (the
+README, the manual, =packaging/fpm/registry.toml=,
+=examples/downstream/fpm.toml=) is updated in the release commit
+itself. The registry file keeps every older tag, so cogapp does not
+rewrite it.
+
+** Who is listed as an author?
+
+The software author in =CITATION.cff=, =ford.md= and =fpm.toml= is
+Rohit Goswami. =CITATION.cff= also carries his ORCID,
+=0000-0002-2393-8056=; =ford.md= and =fpm.toml= have no ORCID field.
+=docs/conf.py= keeps the =d-SEAMS developers= label. The preferred
+citation is the Journal of Chemical Information and Modeling paper
+and keeps that paper's authors.
