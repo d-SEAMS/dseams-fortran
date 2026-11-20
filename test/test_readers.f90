@@ -61,10 +61,9 @@ contains
 
   function stamp_requested() result(yes)
     logical :: yes
-    character(len=16) :: value
-    integer :: length, stat
-    call get_environment_variable("DSEAMS_PROBE_STAMP", value, length, stat)
-    yes = stat == 0 .and. length > 0 .and. value(1:1) == "1"
+    character(len=:), allocatable :: value
+    value = env_raw("DSEAMS_PROBE_STAMP")
+    yes = len_trim(value) > 0 .and. trim(value) /= "0"
   end function stamp_requested
 
   function join_dir(dir, name) result(path)
@@ -113,7 +112,7 @@ contains
   ! TMPDIR, TEMP and TMP all unset, the directory is the working
   ! directory.
   subroutine require_stamp()
-    character(len=:), allocatable :: dir, line, stamp, tmp
+    character(len=:), allocatable :: dir, line, stamp, stamp_name, flag, tmp
     character(len=1024) :: buf
     integer :: unit, iostat
     logical :: ex
@@ -130,7 +129,13 @@ contains
     else if (len(env_raw("TEMP")) == 0 .and. len(env_raw("TMP")) == 0) then
       if (dir /= ".") stop 8
     end if
-    stamp = join_dir(dir, "dseams-probe-stamp")
+    flag = env_raw("DSEAMS_PROBE_STAMP")
+    if (trim(flag) == "1") then
+      stamp_name = "dseams-probe-stamp"
+    else
+      stamp_name = trim(flag)
+    end if
+    stamp = join_dir(dir, stamp_name)
     inquire(file=stamp, exist=ex)
     if (.not. ex) stop 6
     open(newunit=unit, file=stamp, status="old", action="read", iostat=iostat)

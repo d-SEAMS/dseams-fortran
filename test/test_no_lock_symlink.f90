@@ -1,47 +1,55 @@
 ! Copyright (c) d-SEAMS developers
 !
-! Regression test for the symlink-planting attack the once-guard used
-! to be exposed to. An earlier revision of has_chemfiles/has_readcon's
-! fix serialised the probe behind flock(2) on a fixed name,
-! "dseams-probe.lock", in the first writable directory of TMPDIR,
-! TEMP, TMP or the working directory, opened with creat(2). creat(2)
-! follows a symlink and truncates its target (O_TRUNC); the lock file
-! was never unlinked, so the name was predictable and reusable run to
-! run. In a shared, world-writable temp directory, another user could
-! plant a symlink at that exact name ahead of time, pointing at a file
-! they want truncated, and this process would do it for them the next
-! time it ran.
+! Regression test for symlink-planting attacks on probe/lock paths.
+! An earlier revision of has_chemfiles/has_readcon serialised the probe
+! behind flock(2) on a fixed name, "dseams-probe.lock", opened with
+! creat(2), which follows symlinks and truncates the target (O_TRUNC).
 !
-! The once-guard this project ships now (src/dseams_once.c) has no
-! filesystem footprint at all: it is a plain in-process compare-and-
-! swap on an integer, nothing a symlink could intercept. This test
-! proves that directly: plant a symlink at the exact old name, in the
-! exact directory the probe itself reports, pointing at a "victim"
-! file with known content, then run the real probe through
-! has_chemfiles and has_readcon and check the victim is untouched.
+! The current implementation uses a C-owned static atomic_int once-guard
+! (src/dseams_once.c) and writes each probe file inside a private 0700
+! directory through one O_CREAT|O_EXCL|O_NOFOLLOW descriptor
+! (dseams_probe_write). This test checks both:
+!   1. A symlink planted at the retired "dseams-probe.lock" name
+!      pointing at a victim file is untouched by has_chemfiles() and
+!      has_readcon().
+!   2. A symlink planted directly at a probe candidate path and passed
+!      to dseams_probe_write is refused without truncating the victim.
 !
-! Two preconditions make that plant-and-check possible: a writable
-! probe directory, and ln(1) to create the symlink. Neither failing
-! is ever reported as "ok": that would print a pass for a check that
-! never ran. Under CI (the CI environment variable, set by every
-! common CI system including GitHub Actions), both preconditions
-! always hold on this project's own runner, so a precondition failure
-! there means the runner itself is broken, not a legitimate skip, and
-! this program fails hard (STOP with a nonzero, non-77 status).
-! Outside CI, a missing precondition is a real, reportable skip: STOP
-! 77, the GNU/automake convention meson's test harness hardcodes as
-! SKIP (mesonbuild/mtest.py: GNU_SKIP_RETURNCODE; there is no per-test
-! kwarg to set it, since it is not configurable); fpm has no skip
-! concept, so the same STOP 77 is simply a failure there, which is the
-! honest fallback when the test runner cannot represent "skipped".
+! Symlinks are created via POSIX symlink(2) through iso_c_binding (no
+! shell invocation, safe with spaces or metacharacters in paths).
+! Missing preconditions exit 77 outside CI (Meson SKIP) and fail hard
+! under CI.
 program test_no_lock_symlink
   use, intrinsic :: iso_fortran_env, only: int64
+  use, intrinsic :: iso_c_binding, only: c_char, c_int, c_size_t, c_null_char
   use seams, only: has_chemfiles, has_readcon, probe_directory
   implicit none
-  character(len=:), allocatable :: dir, victim, old_lock_name
+
+  interface
+    function c_symlink(target, linkpath) result(rc) bind(c, name="symlink")
+      import :: c_char, c_int
+      character(kind=c_char), intent(in) :: target(*), linkpath(*)
+      integer(c_int) :: rc
+    end function c_symlink
+    function c_unlink(pathname) result(rc) bind(c, name="unlink")
+      import :: c_char, c_int
+      character(kind=c_char), intent(in) :: pathname(*)
+      integer(c_int) :: rc
+    end function c_unlink
+    function dseams_probe_write(path, buf, length) result(rc) bind(c, name="dseams_probe_write")
+      import :: c_char, c_size_t, c_int
+      character(kind=c_char), intent(in) :: path(*), buf(*)
+      integer(c_size_t), value :: length
+      integer(c_int) :: rc
+    end function dseams_probe_write
+  end interface
+
+  character(len=:), allocatable :: dir, victim, old_lock_name, probe_symlink
   character(len=*), parameter :: payload = "do not truncate me"
   character(len=len(payload)) :: read_back
-  integer :: unit, iostat, cmdstat, exitstat
+  character(kind=c_char) :: overwrite_buf(4)
+  integer :: unit, iostat
+  integer(c_int) :: rc
   logical :: chem, rcon, ex, ci
   character(len=32) :: suffix
 
@@ -55,10 +63,10 @@ program test_no_lock_symlink
   call pid_suffix(suffix)
   victim = trim(dir) // "/dseams-symlink-victim-" // trim(suffix)
   old_lock_name = trim(dir) // "/dseams-probe.lock"
+  probe_symlink = trim(dir) // "/dseams-symlink-probe-" // trim(suffix) // ".pdb"
 
-  ! A stale symlink or victim from a previous, killed run must not
-  ! make this run's planting step (or its cleanup) fail.
   call delete_if_exists(old_lock_name)
+  call delete_if_exists(probe_symlink)
   call delete_if_exists(victim)
 
   open(newunit=unit, file=victim, status="new", action="write", iostat=iostat)
@@ -66,48 +74,72 @@ program test_no_lock_symlink
   write(unit, "(a)", advance="no") payload
   close(unit)
 
-  call execute_command_line("ln -s " // victim // " " // old_lock_name, &
-    wait=.true., exitstat=exitstat, cmdstat=cmdstat)
-  if (cmdstat /= 0 .or. exitstat /= 0) then
+  rc = c_symlink(c_str(victim), c_str(old_lock_name))
+  if (rc /= 0_c_int) then
     call delete_if_exists(victim)
-    call skip_or_fail(ci, "no ln(1) available to plant the symlink")
+    call skip_or_fail(ci, "symlink(2) unavailable to plant the symlink")
   end if
 
   inquire(file=old_lock_name, exist=ex)
-  if (.not. ex) error stop "the planted symlink did not appear"
+  if (.not. ex) error stop "the planted lock symlink did not appear"
 
-  ! The real probe mechanism: has_chemfiles and has_readcon each run
-  ! their once-guarded probe exactly as a real caller would. Neither
-  ! one knows or cares that dseams-probe.lock exists in this
-  ! directory; nothing in src/seams_methods.f90 opens that name any
-  ! more.
+  rc = c_symlink(c_str(victim), c_str(probe_symlink))
+  if (rc /= 0_c_int) then
+    call delete_if_exists(old_lock_name)
+    call delete_if_exists(victim)
+    call skip_or_fail(ci, "symlink(2) unavailable to plant the probe symlink")
+  end if
+
+  overwrite_buf = ["E", "V", "I", "L"]
+  rc = dseams_probe_write(c_str(probe_symlink), overwrite_buf, 4_c_size_t)
+  if (rc == 0_c_int) then
+    call delete_if_exists(probe_symlink)
+    call delete_if_exists(old_lock_name)
+    call delete_if_exists(victim)
+    error stop "dseams_probe_write followed a symlink instead of refusing it"
+  end if
+
   chem = has_chemfiles()
   rcon = has_readcon()
 
-  open(newunit=unit, file=victim, status="old", action="read", iostat=iostat)
-  if (iostat /= 0) error stop "the victim file disappeared"
-  read_back = ""
-  read(unit, "(a)", iostat=iostat) read_back
-  close(unit)
+  call check_victim_intact(victim, payload, read_back)
 
-  if (iostat /= 0 .and. iostat /= -1) error stop "could not read the victim file back"
-  if (read_back /= payload) then
-    print "(a,a,a,a,a)", "victim file read back as '", trim(read_back), &
-      "', expected '", payload, "'"
-    error stop "the victim file was modified: the old lock path was followed"
-  end if
-
+  call delete_if_exists(probe_symlink)
   call delete_if_exists(old_lock_name)
   call delete_if_exists(victim)
 
   print "(a,l1,a,l1)", "no lock symlink has_chemfiles ", chem, " has_readcon ", rcon
   print "(a)", "fortran no lock symlink ok"
 contains
-  ! CI is the one variable every common CI system sets (GitHub Actions,
-  ! GitLab CI, Travis, CircleCI); a short VALUE buffer is fine, since
-  ! get_environment_variable reports stat=-1 (not 1, "does not exist")
-  ! when the real value just does not fit, so both stat values below
-  ! mean "the variable is set", regardless of what it is set to.
+  function c_str(text) result(buf)
+    character(len=*), intent(in) :: text
+    character(kind=c_char), allocatable :: buf(:)
+    integer :: i, n
+    n = len_trim(text)
+    allocate(buf(n + 1))
+    do i = 1, n
+      buf(i) = text(i:i)
+    end do
+    buf(n + 1) = c_null_char
+  end function c_str
+
+  subroutine check_victim_intact(path, expected, actual)
+    character(len=*), intent(in) :: path, expected
+    character(len=*), intent(out) :: actual
+    integer :: lu, ios
+    open(newunit=lu, file=path, status="old", action="read", iostat=ios)
+    if (ios /= 0) error stop "the victim file disappeared"
+    actual = ""
+    read(lu, "(a)", iostat=ios) actual
+    close(lu)
+    if (ios /= 0 .and. ios /= -1) error stop "could not read the victim file back"
+    if (actual /= expected) then
+      print "(a,a,a,a,a)", "victim file read back as '", trim(actual), &
+        "', expected '", expected, "'"
+      error stop "the victim file was modified: a symlink was followed"
+    end if
+  end subroutine check_victim_intact
+
   function running_in_ci() result(yes)
     logical :: yes
     character(len=8) :: value
@@ -116,16 +148,10 @@ contains
     yes = (stat == 0 .or. stat == -1) .and. length > 0
   end function running_in_ci
 
-  ! Never prints "ok": that would report a pass for a check that did
-  ! not run. Under CI, a missing precondition is this runner's own
-  ! fault, so it is a hard failure. Elsewhere, it is a real skip:
-  ! STOP 77, meson's hardcoded skip convention, reported SKIP there;
-  ! fpm has no skip concept, so the same exit code is just a failure
-  ! under fpm, the most honest thing fpm can report.
-  subroutine skip_or_fail(ci, reason)
-    logical, intent(in) :: ci
+  subroutine skip_or_fail(in_ci, reason)
+    logical, intent(in) :: in_ci
     character(len=*), intent(in) :: reason
-    if (ci) then
+    if (in_ci) then
       print "(a)", "FAIL: " // reason // &
         " (CI must provide this; the symlink regression check did not run)"
       error stop "symlink regression check did not run under CI"
@@ -144,11 +170,7 @@ contains
 
   subroutine delete_if_exists(path)
     character(len=*), intent(in) :: path
-    integer :: lu, ios
-    logical :: present_here
-    inquire(file=path, exist=present_here)
-    if (.not. present_here) return
-    open(newunit=lu, file=path, status="old", iostat=ios)
-    if (ios == 0) close(lu, status="delete")
+    integer(c_int) :: unused
+    unused = c_unlink(c_str(path))
   end subroutine delete_if_exists
 end program test_no_lock_symlink

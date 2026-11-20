@@ -145,28 +145,60 @@ if not meson.is_subproject()
   # The probe uses the first writable directory among TMPDIR, TEMP, TMP
   # and the working directory. A bogus TMPDIR falls through, so a capable
   # build still reports true. With all three unset, the file is in the cwd.
+  # Each variant runs in its own isolated workdir and uses a distinct
+  # stamp name so parallel meson runs never share a stamp file.
   reader_tmp = meson.project_build_root() / 'reader-tmp'
-  run_command('mkdir', '-p', reader_tmp, check: true)
+  reader_work_tmpdir = meson.project_build_root() / 'reader-work-tmpdir'
+  reader_work_absent = meson.project_build_root() / 'reader-work-absent'
+  reader_work_cwd = meson.project_build_root() / 'reader-work-cwd'
+  run_command(
+    'mkdir', '-p',
+    reader_tmp, reader_work_tmpdir, reader_work_absent, reader_work_cwd,
+    check: true,
+  )
   tmpdir_env = environment()
   tmpdir_env.set('OMP_NUM_THREADS', '1')
   tmpdir_env.set('DSEAMS_ROOT', root)
   tmpdir_env.set('TMPDIR', reader_tmp)
-  tmpdir_env.set('DSEAMS_PROBE_STAMP', '1')
-  test('fortran_readers_tmpdir', readers, args: [root], env: tmpdir_env, timeout: 180)
+  tmpdir_env.set('DSEAMS_PROBE_STAMP', 'dseams-probe-stamp-tmpdir')
+  test(
+    'fortran_readers_tmpdir',
+    readers,
+    args: [root],
+    env: tmpdir_env,
+    workdir: reader_work_tmpdir,
+    timeout: 180,
+  )
   absent_env = environment()
   absent_env.set('OMP_NUM_THREADS', '1')
   absent_env.set('DSEAMS_ROOT', root)
   absent_env.set('TMPDIR', meson.project_build_root() / 'reader-tmp-absent')
-  absent_env.set('DSEAMS_PROBE_STAMP', '1')
-  test('fortran_readers_tmpdir_absent', readers, args: [root], env: absent_env, timeout: 180)
+  absent_env.set('TEMP', '')
+  absent_env.set('TMP', '')
+  absent_env.set('DSEAMS_PROBE_STAMP', 'dseams-probe-stamp-absent')
+  test(
+    'fortran_readers_tmpdir_absent',
+    readers,
+    args: [root],
+    env: absent_env,
+    workdir: reader_work_absent,
+    timeout: 180,
+  )
   cwd_env = environment()
   cwd_env.set('OMP_NUM_THREADS', '1')
   cwd_env.set('DSEAMS_ROOT', root)
   cwd_env.set('TMPDIR', '')
   cwd_env.set('TEMP', '')
   cwd_env.set('TMP', '')
-  cwd_env.set('DSEAMS_PROBE_STAMP', '1')
-  test('fortran_readers_cwd', readers, args: [root], env: cwd_env, timeout: 180)
+  cwd_env.set('DSEAMS_PROBE_STAMP', 'dseams-probe-stamp-cwd')
+  test(
+    'fortran_readers_cwd',
+    readers,
+    args: [root],
+    env: cwd_env,
+    workdir: reader_work_cwd,
+    timeout: 180,
+  )
 
   # seams.f90 includes every module source: the single-file build, one
   # plain compiler call as a user without fpm or meson would make it.
