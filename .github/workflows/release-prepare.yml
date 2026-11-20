@@ -67,11 +67,13 @@ jobs:
             "https://github.com/cocogitto/cocogitto/releases/download/${COG_VERSION}/${COG_ASSET}"
           echo "${COG_SHA256}  cog.tar.gz" | sha256sum -c -
           tar -xzf cog.tar.gz
+          install -d -m 0755 "$HOME/.local/bin"
           install -m 0755 "${COG_EXTRACT_DIR}/cog" "$HOME/.local/bin/cog"
           rm -rf cog.tar.gz "${COG_EXTRACT_DIR}"
-          cog --version
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cog" --version
       - name: cogapp --check (ci/version/files.txt copies agree with fpm.toml)
-        run: python3 -m cogapp -I ci/version --check @ci/version/files.txt
+        run: "$(pipx environment --value PIPX_LOCAL_VENVS)/cogapp/bin/cog" -I ci/version --check @ci/version/files.txt
       - name: Towncrier draft (fragments must build cleanly)
         run: towncrier build --draft --version 0.0.0-dry-run
       - name: Cog check (conventional commits since the last tag)
