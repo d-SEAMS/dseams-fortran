@@ -1,7 +1,7 @@
 ! Copyright (c) d-SEAMS developers
 submodule (seams) seams_methods
   use, intrinsic :: iso_fortran_env, only: int64, error_unit
-  use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char
+  use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char, c_null_char
   use seams_c, only: seams_version_string, seams_label_name, seams_status_string, &
     seams_set_num_threads, seams_get_num_threads, seams_system_create, &
     seams_system_set_ortho, seams_system_set_frame, seams_system_read, seams_system_count, &
@@ -34,15 +34,13 @@ submodule (seams) seams_methods
   ! reproduced exactly that: one caller's probe reported false while
   ! every other caller, running at the same moment, reported true.
   !
-  ! The once-guard below (dseams_once_enter/dseams_once_done, in
-  ! src/dseams_once.c) runs the probe exactly once across however many
-  ! threads call it concurrently, and every caller, including the ones
-  ! that lose the race to run it, blocks until that one run finishes.
-  ! The probe (and the one call into frame%read it needs) therefore
-  ! only ever runs once per process, from one thread, with every other
-  ! caller waiting rather than probing at the same time. The result is
-  ! cached afterwards, same as before, but the write that sets it now
-  ! happens inside that single run instead of racing.
+  ! Both queries share one C-owned static atomic_int once-guard
+  ! (dseams_once_enter/dseams_once_done/dseams_once_state, in
+  ! src/dseams_once.c) and one shared initialization (probe_readers).
+  ! That guarantees at most one thread ever runs the probes, and runs
+  ! the chemfiles and readcon frame%read probes sequentially rather than
+  ! concurrently. Every other caller blocks until that single run
+  ! finishes, then reads chem_cached or con_cached.
   !
   ! An earlier version of this fix used pthread_once instead. That only
   ! works where a zero-initialised pthread_once_t equals
@@ -61,44 +59,53 @@ submodule (seams) seams_methods
   ! test/test_no_lock_symlink.f90.
   !
   ! Neither of those OS-level primitives was ever load-bearing: the
-  ! cached answer (chem_cached/con_cached below) is a plain Fortran
-  ! module variable, private to this process's address space, and the
-  ! probe writes its trial file under a name built from system_clock
-  ! plus a per-attempt counter (see probe_path), unique to the run that
-  ! picked it, in a directory any number of unrelated processes may
-  ! also be using at the same time without colliding. The race that
-  ! needed fixing (and the race test/test_thread_safety.f90 exercises)
-  ! is entirely a same-process, multiple-thread race; no two processes
-  ! coordinating through a shared file were ever part of the problem
-  ! this guards against. <stdatomic.h>, a C11 compiler feature with no
-  ! OS-specific static initializer and no header absent on any target
-  ! this package builds for, needs nothing more than that: a plain
-  ! in-process compare-and-swap, with no filesystem footprint of any
-  ! kind to plant a symlink at.
+  ! cached answers (chem_cached/con_cached below) are plain Fortran
+  ! module variables, private to this process's address space, and the
+  ! probe creates a private 0700 subdirectory via mkdir and writes each
+  ! trial file inside it through a single O_CREAT|O_EXCL|O_NOFOLLOW
+  ! descriptor (dseams_probe_write), with no create-close-reopen TOCTOU
+  ! window. The once-state lives inside src/dseams_once.c as a static
+  ! atomic_int so Fortran never aliases an atomic_int with a plain
+  ! integer(c_int).
   logical, save :: chem_cached = .false.
   logical, save :: con_cached = .false.
-  integer(c_int), save :: chem_once_state = 0_c_int
-  integer(c_int), save :: con_once_state = 0_c_int
 
   interface
-    ! dseams_once_enter returns nonzero for exactly one caller per
-    ! once_state, which must then run the guarded section and call
-    ! dseams_once_done; every other caller, whether it arrives before
-    ! or after that one call returns, blocks inside dseams_once_enter
-    ! until dseams_once_done has been called, then itself returns 0.
-    ! once_state is passed by reference (no "value" attribute), the
-    ! same pattern pthread_create's argument uses in
-    ! test/test_thread_safety.f90, since the C side treats it as
-    ! atomic_int*, not an atomic_int passed by value.
-    function dseams_once_enter(once_state) result(enter) bind(c, name="dseams_once_enter")
+    function dseams_once_enter() result(enter) bind(c, name="dseams_once_enter")
       import :: c_int
-      integer(c_int), intent(inout) :: once_state
       integer(c_int) :: enter
     end function dseams_once_enter
-    subroutine dseams_once_done(once_state) bind(c, name="dseams_once_done")
-      import :: c_int
-      integer(c_int), intent(inout) :: once_state
+    subroutine dseams_once_done() bind(c, name="dseams_once_done")
     end subroutine dseams_once_done
+    function dseams_once_state() result(state) bind(c, name="dseams_once_state")
+      import :: c_int
+      integer(c_int) :: state
+    end function dseams_once_state
+    function dseams_probe_mkdir(path) result(rc) bind(c, name="dseams_probe_mkdir")
+      import :: c_char, c_int
+      character(kind=c_char), intent(in) :: path(*)
+      integer(c_int) :: rc
+    end function dseams_probe_mkdir
+    function dseams_probe_write(path, buf, length) result(rc) bind(c, name="dseams_probe_write")
+      import :: c_char, c_size_t, c_int
+      character(kind=c_char), intent(in) :: path(*), buf(*)
+      integer(c_size_t), value :: length
+      integer(c_int) :: rc
+    end function dseams_probe_write
+    function dseams_probe_write_stamp(path, buf, length) result(rc) bind(c, name="dseams_probe_write_stamp")
+      import :: c_char, c_size_t, c_int
+      character(kind=c_char), intent(in) :: path(*), buf(*)
+      integer(c_size_t), value :: length
+      integer(c_int) :: rc
+    end function dseams_probe_write_stamp
+    subroutine dseams_probe_unlink(path) bind(c, name="dseams_probe_unlink")
+      import :: c_char
+      character(kind=c_char), intent(in) :: path(*)
+    end subroutine dseams_probe_unlink
+    subroutine dseams_probe_rmdir(path) bind(c, name="dseams_probe_rmdir")
+      import :: c_char
+      character(kind=c_char), intent(in) :: path(*)
+    end subroutine dseams_probe_rmdir
   end interface
 contains
 
@@ -1192,63 +1199,58 @@ contains
     call check_status(code, raw, stat, errmsg)
   end procedure brine_pockets
 
-  module procedure has_chemfiles
-    if (dseams_once_enter(chem_once_state) /= 0_c_int) then
-      call probe_chemfiles(chem_cached)
-      call dseams_once_done(chem_once_state)
+  subroutine ensure_readers_probed()
+    if (dseams_once_state() == 2_c_int) return
+    if (dseams_once_enter() /= 0_c_int) then
+      call probe_readers(chem_cached, con_cached)
+      call dseams_once_done()
     end if
+  end subroutine ensure_readers_probed
+
+  module procedure has_chemfiles
+    call ensure_readers_probed()
     yes = chem_cached
   end procedure has_chemfiles
 
   module procedure has_readcon
-    if (dseams_once_enter(con_once_state) /= 0_c_int) then
-      call probe_readcon(con_cached)
-      call dseams_once_done(con_once_state)
-    end if
+    call ensure_readers_probed()
     yes = con_cached
   end procedure has_readcon
 
-  ! Runs exactly once, from exactly one thread, no matter how many
-  ! callers of has_chemfiles race to trigger it; every other caller's
-  ! dseams_once_enter blocks until dseams_once_done is called. ok is
-  ! the only thing it writes.
-  subroutine probe_chemfiles(ok)
-    logical, intent(out) :: ok
-    character(len=:), allocatable :: path
+  ! Runs at most once per process, from one thread, probing chemfiles
+  ! and readcon sequentially so two frame%read calls never run at once.
+  subroutine probe_readers(chem_ok, con_ok)
+    logical, intent(out) :: chem_ok, con_ok
+    character(len=:), allocatable :: base_dir, priv_dir, pdb_path, con_path
     logical :: wrote
-    call probe_path(".pdb", path)
-    if (len(path) == 0) then
-      ok = .false.
+    chem_ok = .false.
+    con_ok = .false.
+    call temp_directory(base_dir)
+    if (len(base_dir) == 0) then
+      call warn_probe_directory()
       return
     end if
-    call write_probe_pdb(path, wrote)
-    if (wrote) then
-      call write_stamp(path)
-      ok = reader_accepts(path)
-    else
-      ok = .false.
-    end if
-    call delete_probe(path)
-  end subroutine probe_chemfiles
-
-  subroutine probe_readcon(ok)
-    logical, intent(out) :: ok
-    character(len=:), allocatable :: path
-    logical :: wrote
-    call probe_path(".con", path)
-    if (len(path) == 0) then
-      ok = .false.
+    call create_probe_dir(base_dir, priv_dir)
+    if (len(priv_dir) == 0) then
+      call warn_probe_directory()
       return
     end if
-    call write_probe_con(path, wrote)
+    call join_dir(priv_dir, "probe.pdb", pdb_path)
+    call write_probe_pdb(pdb_path, wrote)
     if (wrote) then
-      call write_stamp(path)
-      ok = reader_accepts(path)
-    else
-      ok = .false.
+      call write_stamp(base_dir, pdb_path)
+      chem_ok = reader_accepts(pdb_path)
+      call dseams_probe_unlink(f_to_c(pdb_path))
     end if
-    call delete_probe(path)
-  end subroutine probe_readcon
+    call join_dir(priv_dir, "probe.con", con_path)
+    call write_probe_con(con_path, wrote)
+    if (wrote) then
+      call write_stamp(base_dir, con_path)
+      con_ok = reader_accepts(con_path)
+      call dseams_probe_unlink(f_to_c(con_path))
+    end if
+    call dseams_probe_rmdir(f_to_c(priv_dir))
+  end subroutine probe_readers
 
   module procedure probe_directory
     call temp_directory(dir)
@@ -1314,37 +1316,32 @@ contains
     end do
   end subroutine normalize_dir
 
-  ! True when a new file can be created in dir and then removed.
-  ! status="new" fails when the name already exists, so a retry with a
-  ! fresh name picks a different candidate rather than reusing one
-  ! that just failed. has_chemfiles and has_readcon each call this
-  ! from inside their own once-guard, so two threads never run it for
-  ! the same feature at the same time; the retry is for a different
-  ! process, or a leftover file from a previous run, using the same
-  ! name. No counter is shared between calls or threads: every retry
-  ! reads the clock again and advances a local counter only, so a
-  ! second call (from either feature, which do race with each other on
-  ! the filesystem since their once-guards are independent) never
-  ! collides with one already in flight.
+  ! True when a new file can be created exclusively in dir and then removed.
+  ! Uses dseams_probe_write (O_CREAT|O_EXCL|O_NOFOLLOW) so symlinks are
+  ! never followed or truncated.
   function can_write(dir) result(yes)
     character(len=*), intent(in) :: dir
     logical :: yes
     character(len=:), allocatable :: path
     character(len=48) :: token
+    character(kind=c_char) :: empty(1)
     integer(int64) :: ticks
-    integer :: unit, iostat, attempt
+    integer :: attempt
+    integer(c_int) :: rc
     yes = .false.
     if (len_trim(dir) == 0) return
+    empty(1) = c_null_char
     do attempt = 1, 64
       call system_clock(ticks)
       write(token, "(i0,'-',i0)") ticks, attempt
       call join_dir(trim(dir), "dseams-probe-try-" // trim(token), path)
-      open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
-      if (iostat == 0) then
-        close(unit, status="delete")
+      rc = dseams_probe_write(f_to_c(path), empty, 0_c_size_t)
+      if (rc == 0_c_int) then
+        call dseams_probe_unlink(f_to_c(path))
         yes = .true.
         return
       end if
+      if (rc < 0_c_int) return
     end do
   end function can_write
 
@@ -1378,74 +1375,63 @@ contains
     path = dir // sep // name
   end subroutine join_dir
 
-  ! A fresh name in the chosen directory. system_clock plus a counter
-  ! keeps two probes in one process apart. status='new' retries when
-  ! the name is already taken. No writable directory prints one line
-  ! on the error unit and returns an empty path.
-  subroutine probe_path(suffix, path)
-    character(len=*), intent(in) :: suffix
-    character(len=:), allocatable, intent(out) :: path
-    character(len=:), allocatable :: dir
+  ! Create a private 0700 subdirectory inside dir using mkdir.
+  subroutine create_probe_dir(dir, priv_dir)
+    character(len=*), intent(in) :: dir
+    character(len=:), allocatable, intent(out) :: priv_dir
     character(len=48) :: token
     integer(int64) :: ticks
-    integer :: unit, iostat, attempt
-    call temp_directory(dir)
-    path = ""
-    if (len(dir) == 0) then
-      call warn_probe_directory()
-      return
-    end if
-    ! Each once-guarded caller only ever has one of these running at a
-    ! time for its own feature; the retry is for another process or a
-    ! stale file, so the clock is read fresh each attempt rather than
-    ! shared across them.
+    integer :: attempt
+    integer(c_int) :: rc
+    priv_dir = ""
     do attempt = 1, 100
       call system_clock(ticks)
       write(token, "(i0,'-',i0)") ticks, attempt
-      call join_dir(dir, "dseams-probe-" // trim(token) // suffix, path)
-      open(newunit=unit, file=path, status="new", action="write", iostat=iostat)
-      if (iostat == 0) then
-        close(unit)
+      call join_dir(dir, "dseams-probe-" // trim(token), priv_dir)
+      rc = dseams_probe_mkdir(f_to_c(priv_dir))
+      if (rc == 0_c_int) return
+      if (rc < 0_c_int) then
+        priv_dir = ""
         return
       end if
     end do
-    path = ""
-    call warn_probe_directory()
-  end subroutine probe_path
+    priv_dir = ""
+  end subroutine create_probe_dir
 
-  ! Each once-guarded probe can call this at most once per process
-  ! (there is one for chemfiles, one for readcon), so no separate
-  ! once-only guard is needed here.
+  ! Called at most once per process inside the shared once-guard.
   subroutine warn_probe_directory()
     write(error_unit, "(a)") "dseams: no writable directory for the reader probe " // &
       "(tried TMPDIR, TEMP, TMP and the working directory)"
     flush(error_unit)
   end subroutine warn_probe_directory
 
-  ! Left next to the probe file only when DSEAMS_PROBE_STAMP=1, so a
-  ! test can see which directory was used. The readers test deletes it.
-  subroutine write_stamp(probe)
-    character(len=*), intent(in) :: probe
-    character(len=:), allocatable :: flag, stamp, dir
-    integer :: unit, iostat, slash, back, cut
+  ! Left in base_dir only when DSEAMS_PROBE_STAMP is set to a non-zero
+  ! value, so a test can see which directory was used. "1" selects the
+  ! default name "dseams-probe-stamp"; any other value names the stamp
+  ! file directly so parallel test variants do not share one path.
+  subroutine write_stamp(base_dir, probe)
+    character(len=*), intent(in) :: base_dir, probe
+    character(len=:), allocatable :: flag, stamp, stamp_name
+    character(kind=c_char), allocatable :: buf(:)
+    integer :: i, n
+    integer(c_int) :: rc
     call env_string("DSEAMS_PROBE_STAMP", flag)
-    if (len(flag) == 0) return
-    if (flag(1:1) /= "1") return
-    slash = index(probe, "/", back=.true.)
-    back = index(probe, "\", back=.true.)
-    cut = max(slash, back)
-    if (cut <= 0) then
-      dir = "."
-    else if (cut == 1) then
-      dir = probe(1:1)
+    if (len_trim(flag) == 0) return
+    if (trim(flag) == "0") return
+    if (trim(flag) == "1") then
+      stamp_name = "dseams-probe-stamp"
     else
-      dir = probe(1:cut - 1)
+      stamp_name = trim(flag)
     end if
-    call join_dir(dir, "dseams-probe-stamp", stamp)
-    open(newunit=unit, file=stamp, status="replace", action="write", iostat=iostat)
-    if (iostat /= 0) return
-    write(unit, "(a)") probe
-    close(unit)
+    call join_dir(base_dir, stamp_name, stamp)
+    n = len_trim(probe) + 1
+    allocate(buf(n))
+    do i = 1, n - 1
+      buf(i) = probe(i:i)
+    end do
+    buf(n) = new_line("a")
+    rc = dseams_probe_write_stamp(f_to_c(stamp), buf, int(n, c_size_t))
+    deallocate(buf)
   end subroutine write_stamp
 
   ! True only when the engine both accepts the file and keeps at least
@@ -1512,26 +1498,30 @@ contains
     character(len=*), intent(in) :: path
     character(len=*), intent(in) :: lines(:)
     logical, intent(out) :: ok
-    integer :: unit, i, iostat
+    character(kind=c_char), allocatable :: buf(:)
+    character(len=1) :: lf
+    integer :: i, j, pos, nline, total
+    integer(c_int) :: rc
     ok = .false.
-    open(newunit=unit, file=path, status="replace", action="write", iostat=iostat)
-    if (iostat /= 0) return
+    lf = new_line("a")
+    total = 0
     do i = 1, size(lines)
-      write(unit, "(a)", iostat=iostat) trim(lines(i))
-      if (iostat /= 0) then
-        close(unit, status="delete")
-        return
-      end if
+      total = total + len_trim(lines(i)) + 1
     end do
-    close(unit)
-    ok = .true.
+    if (total <= 0) return
+    allocate(buf(total))
+    pos = 1
+    do i = 1, size(lines)
+      nline = len_trim(lines(i))
+      do j = 1, nline
+        buf(pos) = lines(i)(j:j)
+        pos = pos + 1
+      end do
+      buf(pos) = lf
+      pos = pos + 1
+    end do
+    rc = dseams_probe_write(f_to_c(path), buf, int(total, c_size_t))
+    deallocate(buf)
+    ok = (rc == 0_c_int)
   end subroutine write_probe_lines
-
-  subroutine delete_probe(path)
-    character(len=*), intent(in) :: path
-    integer :: unit, iostat
-    open(newunit=unit, file=path, status="old", iostat=iostat)
-    if (iostat /= 0) return
-    close(unit, status="delete")
-  end subroutine delete_probe
 end submodule seams_methods
