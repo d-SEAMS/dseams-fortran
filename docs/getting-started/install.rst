@@ -3,7 +3,7 @@ Install
 
 The package links an installed ``libseams`` and does not build it.
 From a `seams-core <https://github.com/d-SEAMS/seams-core>`_ checkout
-at tag ``v2.14.1``:
+at tag ``v2.14.2``:
 
 .. code-block:: bash
 
@@ -29,7 +29,7 @@ Use it from fpm
 .. code-block:: toml
 
    [dependencies]
-   dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.1" }
+   dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.2" }
 
 With ``seams.pc`` on ``PKG_CONFIG_PATH``:
 

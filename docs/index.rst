@@ -3,7 +3,7 @@ dseams
 
 ``dseams`` is the Fortran package for the
 `d-SEAMS <https://docs.dseams.info/>`_ engine. A program uses the ``seams`` module. Coordinates are ``real(seams_real)`` with shape
-``(3, n)``. The package links an installed libseams 2.14.1 and does not
+``(3, n)``. The package links an installed libseams 2.14.2 and does not
 build one.
 
 .. toctree::

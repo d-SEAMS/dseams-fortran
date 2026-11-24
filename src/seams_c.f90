@@ -42,7 +42,7 @@ module seams_c
   integer(c_int), parameter :: SEAMS_LABEL_CUBIC = 0
 
   interface
-  !> Version text, for example 2.14.1. The pointer is static; the caller does not free it.
+  !> Version text, for example 2.14.2. The pointer is static; the caller does not free it.
     function seams_version_string() bind(C, name="seams_version_string")
       import :: c_ptr
       type(c_ptr) :: seams_version_string

@@ -3,13 +3,13 @@
 #
 # Meson build of the Fortran modules, for projects that pull this
 # repository in as a subproject. fpm.toml is the other build. Both link
-# an installed libseams from seams-core tag v2.14.1, found through pkg-config
+# an installed libseams from seams-core tag v2.14.2, found through pkg-config
 # (seams.pc) or, failing that, on the linker search path and in the
 # directories named by -Dseams_libdir.
 project(
   'dseams-fortran',
   'fortran',
-  version: '2.14.1',
+  version: '2.14.2',
   license: 'MIT',
   meson_version: '>=1.1.0',
   default_options: ['warning_level=1'],
@@ -17,7 +17,7 @@ project(
 
 # The Fortran sources only link libseams; the C compile flags in seams.pc
 # (include paths, feature defines) are dropped.
-seams_dep = dependency('seams', version: '>=2.14.1', required: false)
+seams_dep = dependency('seams', version: '>=2.14.2', required: false)
 if seams_dep.found()
   seams_dep = seams_dep.partial_dependency(links: true, link_args: true)
 else
@@ -101,7 +101,7 @@ if not meson.is_subproject()
   )
   test('fortran_one_file', one_file, args: [root], env: fortran_env, timeout: 180)
 
-  seams_lang_dep = dependency('seams-lang', version: '>=2.14.1', required: false)
+  seams_lang_dep = dependency('seams-lang', version: '>=2.14.2', required: false)
   if seams_lang_dep.found()
     seams_lang_dep = seams_lang_dep.partial_dependency(links: true, link_args: true)
   else

@@ -15,10 +15,10 @@ permissions:
   contents: read
 
 env:
-  # seams-core v2.14.1. The ref is the annotated tag, not a branch.
+  # seams-core v2.14.2. The ref is the annotated tag, not a branch.
   # The tag points at 0f6c82810f5c1e61a70c363cca50fe8148b3ff21.
   SEAMS_CORE_REPOSITORY: d-SEAMS/seams-core
-  SEAMS_CORE_REF: v2.14.1
+  SEAMS_CORE_REF: v2.14.2
   SEAMS_PREFIX: ${{ github.workspace }}/../seams-prefix
 
 concurrency:

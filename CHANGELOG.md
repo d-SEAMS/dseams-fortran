@@ -12,6 +12,18 @@ by [towncrier](https://towncrier.readthedocs.io/).
 
 <!-- towncrier release notes start -->
 
+## [2.14.2] - 2026-11-24
+
+### Changed
+
+- The Fortran package builds and tests against seams-core 2.14.2.
+
+### Fixed
+
+- The documented seams-core install command works on a fresh machine: `-Dwith_tests=false` keeps the engine test suite's libraries out of a library-only install.
+- The trajectory tutorial is titled "Reading a trajectory" instead of sharing "Fortran" with the API page, the FORD interface sidebar links reach their sections, and the rings page says which indices are 1-based.
+
+
 ## [2.14.1] - 2026-11-19
 
 ### Added

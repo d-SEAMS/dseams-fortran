@@ -18,8 +18,8 @@ message.
 
 ## Install libseams
 
-The package links an installed libseams 2.14.1 and does not build it.
-From a seams-core checkout at `v2.14.1`:
+The package links an installed libseams 2.14.2 and does not build it.
+From a seams-core checkout at `v2.14.2`:
 
 ```bash
 meson setup build --prefix="$PREFIX" --libdir=lib
@@ -32,7 +32,7 @@ That installs `libseams.so` and `seams.pc` under `$PREFIX/lib`.
 
 ```toml
 [dependencies]
-dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.1" }
+dseams = { git = "https://github.com/d-SEAMS/dseams-fortran", tag = "v2.14.2" }
 ```
 
 fpm needs the library directory on the link line, and the loader needs
@@ -153,7 +153,7 @@ meson setup build/meson -Dseams_libdir=$SC/src,$SC/bindings
 meson test -C build/meson
 ```
 
-CI builds seams-core tag `v2.14.1` on `d-SEAMS/seams-core`, named by
+CI builds seams-core tag `v2.14.2` on `d-SEAMS/seams-core`, named by
 `SEAMS_CORE_REPOSITORY` and `SEAMS_CORE_REF` in
 `.github/workflows/ci.yml`.
 

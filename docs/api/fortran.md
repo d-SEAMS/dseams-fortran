@@ -97,7 +97,7 @@ cubic 8 of 8
 one thread. This is the output:
 
 ```text
-version 2.14.1
+version 2.14.2
 atoms 64
 cubic 64
 counts_cubic 64

@@ -6,7 +6,7 @@ project_website: https://docs.dseams.info/
 author: Rohit Goswami
 author_description: d-SEAMS developers
 license: MIT
-version: 2.14.1
+version: 2.14.2
 src_dir: ./src
 exclude_dir: ./example
              ./test
