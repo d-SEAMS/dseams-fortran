@@ -51,7 +51,8 @@ jobs:
         working-directory: _seams-core
         run: |
           meson setup build-pkg --buildtype=release --prefix="$SEAMS_PREFIX" --libdir=lib \
-            -Dwith_tests=false -Dwith_chemfiles=disabled -Dwith_lammps=disabled -Dwith_gromacs=disabled \
+            -Dwith_tests=false -Dwith_chemfiles=disabled -Dwith_readcon=enabled \
+            -Dwith_lammps=disabled -Dwith_gromacs=disabled \
             -Dwith_openmm=disabled -Dwith_plumed=disabled -Dwith_gpulite=disabled
           ninja -C build-pkg
           meson install -C build-pkg
