@@ -86,6 +86,69 @@ jobs:
           fpm build --compiler gfortran --dump fpm_model.json
           fpm publish --show-upload-data
 
+  # libseams built with chemfiles and readcon-core. The readers test is
+  # not allowed to skip: DSEAMS_REQUIRE_READERS fails it when either
+  # feature query is false, and the log is grepped for the same lines.
+  readers:
+    name: readers (chemfiles, readcon)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.SEAMS_CORE_REPOSITORY }}
+          ref: ${{ env.SEAMS_CORE_REF }}
+          path: _seams-core
+      - name: Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ gfortran ninja-build pkg-config cmake libeigen3-dev libgomp1
+          # 24.04 has no libflexiblas-dev; the seams-core script builds it.
+          sudo sh _seams-core/scripts/install_flexiblas.sh
+          pipx install meson
+          pipx install fpm
+      - name: Build and install libseams with both readers
+        working-directory: _seams-core
+        run: |
+          meson setup build-pkg --buildtype=release --prefix="$SEAMS_PREFIX" --libdir=lib \
+            -Dwith_tests=false -Dwith_chemfiles=enabled -Dwith_readcon=enabled \
+            -Dwith_lammps=disabled -Dwith_gromacs=disabled -Dwith_openmm=disabled \
+            -Dwith_plumed=disabled -Dwith_gpulite=disabled
+          ninja -C build-pkg
+          meson install -C build-pkg
+      - name: Point the builds at libseams
+        run: |
+          # libseams.so has no RUNPATH to the libraries installed beside it.
+          {
+            echo "LD_LIBRARY_PATH=$SEAMS_PREFIX/lib"
+            echo "PKG_CONFIG_PATH=$SEAMS_PREFIX/lib/pkgconfig"
+            echo "FPM_LDFLAGS=-L$SEAMS_PREFIX/lib -Wl,-rpath,$SEAMS_PREFIX/lib"
+            echo "OMP_NUM_THREADS=1"
+            echo "DSEAMS_REQUIRE_READERS=1"
+          } >> "$GITHUB_ENV"
+      - name: fpm test
+        run: |
+          set -euo pipefail
+          fpm test --compiler gfortran 2>&1 | tee fpm-test.log
+          grep -q 'has_chemfiles T' fpm-test.log
+          grep -q 'has_readcon T' fpm-test.log
+          grep -q 'read con 4' fpm-test.log
+          grep -q 'read pdb 1' fpm-test.log
+          grep -q 'read gro 1' fpm-test.log
+      - name: Meson
+        run: |
+          FC=gfortran meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
+          meson test -C build/meson --print-errorlogs
+      - name: Assert the readers meson linked
+        run: |
+          set -euo pipefail
+          ./build/meson/test_fortran_readers "${GITHUB_WORKSPACE}" | tee meson-readers.log
+          grep -q 'has_chemfiles T' meson-readers.log
+          grep -q 'has_readcon T' meson-readers.log
+          grep -q 'read con 4' meson-readers.log
+          grep -q 'read pdb 1' meson-readers.log
+          grep -q 'read gro 1' meson-readers.log
+
   docs:
     runs-on: ubuntu-24.04
     steps:

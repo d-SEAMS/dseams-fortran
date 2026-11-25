@@ -14,9 +14,13 @@ fpm
    fpm run --example minimal -- input/traj/genice_sI.lammpstrj
 
 ``fpm test`` runs ``check_dseams`` (prints ``dseams fortran ok``),
-``capi`` (prints ``fortran ok``), ``high`` (prints ``fortran high ok``)
-and ``lang_tasks``. The ice Ih line from ``lang_tasks`` is on the
-`language-task page <../../lang/task-fortran.html>`_.
+``capi`` (prints ``fortran ok``), ``high`` (prints ``fortran high ok``),
+``lang_tasks`` and ``readers``. The ice Ih line from ``lang_tasks`` is
+on the `language-task page <../../lang/task-fortran.html>`_.
+``readers`` prints ``has_chemfiles`` and ``has_readcon`` as ``T`` or
+``F``, then ``read con``, ``read pdb`` and ``read gro`` with an atom
+count, or ``skip`` for a reader the loaded libseams does not have, and
+``fortran readers ok``.
 
 ``test/test_capi.f90`` calls every ``bind(C)`` procedure in ``seams_c``
 on the 64-atom cell, then reads the fixtures under ``input/``. The
@@ -49,21 +53,33 @@ directories: ``meson setup build/meson -Dseams_libdir="$PREFIX/lib"``.
 A parent project calls ``subproject('dseams-fortran')`` and then
 ``dependency('dseams-fortran')``. The meson test names are
 ``fortran_capi``, ``fortran_check``, ``fortran_high``,
-``fortran_one_file``, ``fortran_lang_tasks``, ``fortran_cubic`` and
-``fortran_minimal``.
+``fortran_readers``, ``fortran_readers_tmpdir``,
+``fortran_readers_tmpdir_absent``, ``fortran_readers_cwd``,
+``fortran_one_file``, ``fortran_doc_build``, ``fortran_lang_tasks``, ``fortran_cubic`` and
+``fortran_minimal``. ``fortran_readers_tmpdir`` sets ``TMPDIR`` to a
+directory in the build tree. ``fortran_readers_tmpdir_absent`` sets
+``TMPDIR`` to a path that is not created; the probe falls through and
+a capable build still reports true. ``fortran_readers_cwd`` unsets
+``TMPDIR``, ``TEMP`` and ``TMP``, and the probe file is in the working
+directory. This package does not define ``SEAMS_HAS_CHEMFILES`` or
+``SEAMS_HAS_READCON`` and does not link those libraries. The runtime
+query is the mechanism: ``has_chemfiles`` and ``has_readcon`` ask the
+loaded libseams. ``probe_directory`` is where those calls write.
 
 One file
 --------
 
 ``seams.f90`` at the repository root includes every module in
-dependency order:
+dependency order, and ``src/dseams_once.c`` provides the C11
+once-guard and atomic probe helpers:
 
 .. code-block:: bash
 
+   cc -c src/dseams_once.c
    gfortran -c seams.f90
-   gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams -Wl,-rpath,"$SEAMS_LIB_DIR"
+   gfortran your_program.f90 seams.o dseams_once.o -L"$SEAMS_LIB_DIR" -lseams -Wl,-rpath,"$SEAMS_LIB_DIR"
 
-fpm and meson compile ``src/`` and must not also compile this file.
+fpm and meson compile ``src/`` and must not also compile ``seams.f90``.
 Linking ``example/cubic.f90`` this way prints the census on the
 `API page <../../api/fortran.html>`_, starting ``version 2.14.2``.
 
@@ -76,6 +92,7 @@ uses only that module:
 .. code-block:: bash
 
    mkdir -p build/fmod
+   cc -c src/dseams_once.c -o build/fmod/dseams_once.o
    gfortran -Jbuild/fmod -c src/seams_kinds.f90 -o build/fmod/seams_kinds.o
    gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_c.f90 -o build/fmod/seams_c.o
    gfortran -Jbuild/fmod -Ibuild/fmod -c src/seams_support.f90 -o build/fmod/seams_support.o
@@ -86,7 +103,7 @@ uses only that module:
    build/test_seams "$PWD"
 
 A program that uses ``seams`` links ``seams_kinds.o``,
-``seams_c.o``, ``seams_support.o``, ``seams.o`` and
-``seams_methods.o``, in that order. Set ``LD_LIBRARY_PATH`` to the
-directory that holds ``libseams.so`` when that library does not find
-``libyodaLib.so`` on its own.
+``seams_c.o``, ``seams_support.o``, ``seams.o``,
+``seams_methods.o`` and ``dseams_once.o``, in that order. Set
+``LD_LIBRARY_PATH`` to the directory that holds ``libseams.so`` when
+that library does not find ``libyodaLib.so`` on its own.

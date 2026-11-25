@@ -1,6 +1,7 @@
 ! Copyright (c) d-SEAMS developers
 submodule (seams) seams_methods
-  use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char
+  use, intrinsic :: iso_fortran_env, only: int64, error_unit
+  use seams_kinds, only: c_ptr, c_null_ptr, c_associated, c_loc, c_int, c_double, c_size_t, c_char, c_null_char
   use seams_c, only: seams_version_string, seams_label_name, seams_status_string, &
     seams_set_num_threads, seams_get_num_threads, seams_system_create, &
     seams_system_set_ortho, seams_system_set_frame, seams_system_read, seams_system_count, &
@@ -17,6 +18,95 @@ submodule (seams) seams_methods
     c_to_f, f_to_c, check_status, copy_key, kind_system, kind_neighbours, kind_rings, &
     kind_cages, kind_topo, kind_brine
   implicit none
+
+  ! has_chemfiles and has_readcon used to cache their answer in a
+  ! logical/logical pair ("known"/"value"), set by whichever caller ran
+  ! the probe first. Two threads racing that first call could
+  ! interleave the writes to "known" and "value" with no ordering
+  ! guarantee between them, so a second caller could read a "known"
+  ! that is true and a "value" that is still its unset default.
+  !
+  ! Computing the answer fresh on every call, with no shared state at
+  ! all, does not fix this on its own: has_chemfiles and has_readcon
+  ! both end by calling frame%read, which this package does not control
+  ! and does not know to be safe to call from more than one thread at
+  ! once. Sixteen threads probing at the same time, with no caching,
+  ! reproduced exactly that: one caller's probe reported false while
+  ! every other caller, running at the same moment, reported true.
+  !
+  ! Both queries share one C-owned static atomic_int once-guard
+  ! (dseams_once_enter/dseams_once_done/dseams_once_state, in
+  ! src/dseams_once.c) and one shared initialization (probe_readers).
+  ! That guarantees at most one thread ever runs the probes, and runs
+  ! the chemfiles and readcon frame%read probes sequentially rather than
+  ! concurrently. Every other caller blocks until that single run
+  ! finishes, then reads chem_cached or con_cached.
+  !
+  ! An earlier version of this fix used pthread_once instead. That only
+  ! works where a zero-initialised pthread_once_t equals
+  ! PTHREAD_ONCE_INIT: true on the glibc this project's CI links
+  ! against, not guaranteed by POSIX, and false on macOS on purpose
+  ! (Darwin's PTHREAD_ONCE_INIT is a non-zero signature word, so a
+  ! never-set-up instance is invalid rather than silently working). A
+  ! later revision of that fix serialised the probe behind an exclusive
+  ! flock(2) on a file from creat(2) instead, to dodge the
+  ! PTHREAD_ONCE_INIT problem; creat(2) follows a symlink and truncates
+  ! its target (O_TRUNC), and the chosen path, a fixed name in TMPDIR
+  ! or the working directory, is predictable and never unlinked. In a
+  ! shared, world-writable /tmp, another user can plant a symlink at
+  ! that name ahead of time and have the next run of this process
+  ! truncate whatever the symlink points at; see
+  ! test/test_no_lock_symlink.f90.
+  !
+  ! Neither of those OS-level primitives was ever load-bearing: the
+  ! cached answers (chem_cached/con_cached below) are plain Fortran
+  ! module variables, private to this process's address space, and the
+  ! probe creates a private 0700 subdirectory via mkdir and writes each
+  ! trial file inside it through a single O_CREAT|O_EXCL|O_NOFOLLOW
+  ! descriptor (dseams_probe_write), with no create-close-reopen TOCTOU
+  ! window. The once-state lives inside src/dseams_once.c as a static
+  ! atomic_int so Fortran never aliases an atomic_int with a plain
+  ! integer(c_int).
+  logical, save :: chem_cached = .false.
+  logical, save :: con_cached = .false.
+
+  interface
+    function dseams_once_enter() result(enter) bind(c, name="dseams_once_enter")
+      import :: c_int
+      integer(c_int) :: enter
+    end function dseams_once_enter
+    subroutine dseams_once_done() bind(c, name="dseams_once_done")
+    end subroutine dseams_once_done
+    function dseams_once_state() result(state) bind(c, name="dseams_once_state")
+      import :: c_int
+      integer(c_int) :: state
+    end function dseams_once_state
+    function dseams_probe_mkdir(path) result(rc) bind(c, name="dseams_probe_mkdir")
+      import :: c_char, c_int
+      character(kind=c_char), intent(in) :: path(*)
+      integer(c_int) :: rc
+    end function dseams_probe_mkdir
+    function dseams_probe_write(path, buf, length) result(rc) bind(c, name="dseams_probe_write")
+      import :: c_char, c_size_t, c_int
+      character(kind=c_char), intent(in) :: path(*), buf(*)
+      integer(c_size_t), value :: length
+      integer(c_int) :: rc
+    end function dseams_probe_write
+    function dseams_probe_write_stamp(path, buf, length) result(rc) bind(c, name="dseams_probe_write_stamp")
+      import :: c_char, c_size_t, c_int
+      character(kind=c_char), intent(in) :: path(*), buf(*)
+      integer(c_size_t), value :: length
+      integer(c_int) :: rc
+    end function dseams_probe_write_stamp
+    subroutine dseams_probe_unlink(path) bind(c, name="dseams_probe_unlink")
+      import :: c_char
+      character(kind=c_char), intent(in) :: path(*)
+    end subroutine dseams_probe_unlink
+    subroutine dseams_probe_rmdir(path) bind(c, name="dseams_probe_rmdir")
+      import :: c_char
+      character(kind=c_char), intent(in) :: path(*)
+    end subroutine dseams_probe_rmdir
+  end interface
 contains
 
   function opt_real(value, fallback) result(out)
@@ -135,7 +225,7 @@ contains
       key = ""
       return
     end if
-    key = copy_key(buf, int(n))
+    call copy_key(buf, int(n), key)
     ! c_loc on this buffer keeps gfortran from freeing it on return.
     deallocate(buf)
     call check_status(code, raw, stat, errmsg)
@@ -153,7 +243,7 @@ contains
   end procedure new_frame
 
   module procedure version_text
-    text = c_to_f(seams_version_string())
+    call c_to_f(seams_version_string(), text)
   end procedure version_text
 
   module procedure set_num_threads
@@ -167,11 +257,11 @@ contains
   end procedure num_threads
 
   module procedure label_name
-    text = c_to_f(seams_label_name(int(code, c_int)))
+    call c_to_f(seams_label_name(int(code, c_int)), text)
   end procedure label_name
 
   module procedure status_text
-    text = c_to_f(seams_status_string(int(code, c_int)))
+    call c_to_f(seams_status_string(int(code, c_int)), text)
   end procedure status_text
 
   module procedure path_nframes
@@ -1108,4 +1198,330 @@ contains
     reservoir_waters = int(waters, seams_int)
     call check_status(code, raw, stat, errmsg)
   end procedure brine_pockets
+
+  subroutine ensure_readers_probed()
+    if (dseams_once_state() == 2_c_int) return
+    if (dseams_once_enter() /= 0_c_int) then
+      call probe_readers(chem_cached, con_cached)
+      call dseams_once_done()
+    end if
+  end subroutine ensure_readers_probed
+
+  module procedure has_chemfiles
+    call ensure_readers_probed()
+    yes = chem_cached
+  end procedure has_chemfiles
+
+  module procedure has_readcon
+    call ensure_readers_probed()
+    yes = con_cached
+  end procedure has_readcon
+
+  ! Runs at most once per process, from one thread, probing chemfiles
+  ! and readcon sequentially so two frame%read calls never run at once.
+  subroutine probe_readers(chem_ok, con_ok)
+    logical, intent(out) :: chem_ok, con_ok
+    character(len=:), allocatable :: base_dir, priv_dir, pdb_path, con_path
+    logical :: wrote
+    chem_ok = .false.
+    con_ok = .false.
+    call temp_directory(base_dir)
+    if (len(base_dir) == 0) then
+      call warn_probe_directory()
+      return
+    end if
+    call create_probe_dir(base_dir, priv_dir)
+    if (len(priv_dir) == 0) then
+      call warn_probe_directory()
+      return
+    end if
+    call join_dir(priv_dir, "probe.pdb", pdb_path)
+    call write_probe_pdb(pdb_path, wrote)
+    if (wrote) then
+      call write_stamp(base_dir, pdb_path)
+      chem_ok = reader_accepts(pdb_path)
+      call dseams_probe_unlink(f_to_c(pdb_path))
+    end if
+    call join_dir(priv_dir, "probe.con", con_path)
+    call write_probe_con(con_path, wrote)
+    if (wrote) then
+      call write_stamp(base_dir, con_path)
+      con_ok = reader_accepts(con_path)
+      call dseams_probe_unlink(f_to_c(con_path))
+    end if
+    call dseams_probe_rmdir(f_to_c(priv_dir))
+  end subroutine probe_readers
+
+  module procedure probe_directory
+    call temp_directory(dir)
+  end procedure probe_directory
+
+  ! First directory that can take a file. A set but missing or
+  ! unwritable TMPDIR falls through to TEMP, then TMP, then the
+  ! working directory. Empty means every candidate failed. This never
+  ! assumes a Unix temp path and never calls getpid.
+  !
+  ! This, and every other character(len=:), allocatable helper below
+  ! it (usable_env, normalize_dir, join_dir, env_string, probe_path),
+  ! is a SUBROUTINE with an allocatable intent(out) argument, not a
+  ! FUNCTION with an allocatable result, on purpose: see
+  ! docs/orgmode/contributing/developer/faq.org and logs/f3/ for the
+  ! reproducer. gfortran 13.3.0 (this project's own CI compiler)
+  ! reliably corrupts a character(len=:), allocatable FUNCTION result
+  ! returned to a caller running concurrently with any other call,
+  ! anywhere in the process, that also returns such a result; up to
+  ! and including glibc's allocator itself aborting with "free():
+  ! invalid next size". The identical computation expressed as a
+  ! SUBROUTINE with an allocatable intent(out) argument, called the
+  ! same way under the same load, is not affected; neither is a
+  ! deferred-length allocatable CHARACTER ARRAY function result (see
+  ! f_to_c in seams_support.f90, left as a function since it does not
+  ! have this problem). This is not a defect in this package's logic:
+  ! the reproducer needs no SAVE variable, no missing "recursive", and
+  ! no shared state of any kind, only two ordinary calls to two
+  ! ordinary character(len=:), allocatable functions running on
+  ! different threads at the same moment.
+  subroutine temp_directory(dir)
+    character(len=:), allocatable, intent(out) :: dir
+    call usable_env("TMPDIR", dir)
+    if (len(dir) > 0) return
+    call usable_env("TEMP", dir)
+    if (len(dir) > 0) return
+    call usable_env("TMP", dir)
+    if (len(dir) > 0) return
+    if (can_write(".")) then
+      dir = "."
+      return
+    end if
+    dir = ""
+  end subroutine temp_directory
+
+  subroutine usable_env(name, dir)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable, intent(out) :: dir
+    character(len=:), allocatable :: raw
+    call env_string(name, raw)
+    call normalize_dir(raw, dir)
+    if (len(dir) == 0) return
+    if (.not. can_write(dir)) dir = ""
+  end subroutine usable_env
+
+  subroutine normalize_dir(raw, dir)
+    character(len=*), intent(in) :: raw
+    character(len=:), allocatable, intent(out) :: dir
+    dir = trim(raw)
+    do while (len(dir) > 1)
+      if (dir(len(dir):len(dir)) /= "/" .and. dir(len(dir):len(dir)) /= "\") exit
+      dir = dir(1:len(dir) - 1)
+    end do
+  end subroutine normalize_dir
+
+  ! True when a new file can be created exclusively in dir and then removed.
+  ! Uses dseams_probe_write (O_CREAT|O_EXCL|O_NOFOLLOW) so symlinks are
+  ! never followed or truncated.
+  function can_write(dir) result(yes)
+    character(len=*), intent(in) :: dir
+    logical :: yes
+    character(len=:), allocatable :: path
+    character(len=48) :: token
+    character(kind=c_char) :: empty(1)
+    integer(int64) :: ticks
+    integer :: attempt
+    integer(c_int) :: rc
+    yes = .false.
+    if (len_trim(dir) == 0) return
+    empty(1) = c_null_char
+    do attempt = 1, 64
+      call system_clock(ticks)
+      write(token, "(i0,'-',i0)") ticks, attempt
+      call join_dir(trim(dir), "dseams-probe-try-" // trim(token), path)
+      rc = dseams_probe_write(f_to_c(path), empty, 0_c_size_t)
+      if (rc == 0_c_int) then
+        call dseams_probe_unlink(f_to_c(path))
+        yes = .true.
+        return
+      end if
+      if (rc < 0_c_int) return
+    end do
+  end function can_write
+
+  subroutine env_string(name, value)
+    character(len=*), intent(in) :: name
+    character(len=:), allocatable, intent(out) :: value
+    integer :: length, stat
+    call get_environment_variable(name, length=length, status=stat)
+    if (stat /= 0 .or. length <= 0) then
+      value = ""
+      return
+    end if
+    allocate(character(len=length) :: value)
+    call get_environment_variable(name, value)
+  end subroutine env_string
+
+  subroutine join_dir(dir, name, path)
+    character(len=*), intent(in) :: dir, name
+    character(len=:), allocatable, intent(out) :: path
+    character(len=1) :: sep
+    if (len(dir) == 0) then
+      path = name
+      return
+    end if
+    if (dir(len(dir):len(dir)) == "/" .or. dir(len(dir):len(dir)) == "\") then
+      path = dir // name
+      return
+    end if
+    sep = "/"
+    if (index(dir, "\") > 0 .and. index(dir, "/") == 0) sep = "\"
+    path = dir // sep // name
+  end subroutine join_dir
+
+  ! Create a private 0700 subdirectory inside dir using mkdir.
+  subroutine create_probe_dir(dir, priv_dir)
+    character(len=*), intent(in) :: dir
+    character(len=:), allocatable, intent(out) :: priv_dir
+    character(len=48) :: token
+    integer(int64) :: ticks
+    integer :: attempt
+    integer(c_int) :: rc
+    priv_dir = ""
+    do attempt = 1, 100
+      call system_clock(ticks)
+      write(token, "(i0,'-',i0)") ticks, attempt
+      call join_dir(dir, "dseams-probe-" // trim(token), priv_dir)
+      rc = dseams_probe_mkdir(f_to_c(priv_dir))
+      if (rc == 0_c_int) return
+      if (rc < 0_c_int) then
+        priv_dir = ""
+        return
+      end if
+    end do
+    priv_dir = ""
+  end subroutine create_probe_dir
+
+  ! Called at most once per process inside the shared once-guard.
+  subroutine warn_probe_directory()
+    write(error_unit, "(a)") "dseams: no writable directory for the reader probe " // &
+      "(tried TMPDIR, TEMP, TMP and the working directory)"
+    flush(error_unit)
+  end subroutine warn_probe_directory
+
+  ! Left in base_dir only when DSEAMS_PROBE_STAMP is set to a non-zero
+  ! value, so a test can see which directory was used. "1" selects the
+  ! default name "dseams-probe-stamp"; any other value names the stamp
+  ! file directly so parallel test variants do not share one path.
+  subroutine write_stamp(base_dir, probe)
+    character(len=*), intent(in) :: base_dir, probe
+    character(len=:), allocatable :: flag, stamp, stamp_name
+    character(kind=c_char), allocatable :: buf(:)
+    integer :: i, n
+    integer(c_int) :: rc
+    call env_string("DSEAMS_PROBE_STAMP", flag)
+    if (len_trim(flag) == 0) return
+    if (trim(flag) == "0") return
+    if (trim(flag) == "1") then
+      stamp_name = "dseams-probe-stamp"
+    else
+      stamp_name = trim(flag)
+    end if
+    call join_dir(base_dir, stamp_name, stamp)
+    n = len_trim(probe) + 1
+    allocate(buf(n))
+    do i = 1, n - 1
+      buf(i) = probe(i:i)
+    end do
+    buf(n) = new_line("a")
+    rc = dseams_probe_write_stamp(f_to_c(stamp), buf, int(n, c_size_t))
+    deallocate(buf)
+  end subroutine write_stamp
+
+  ! True only when the engine both accepts the file and keeps at least
+  ! one atom. A missing reader returns an error and zero atoms; a probe
+  ! that failed to parse must not be reported as support.
+  function reader_accepts(path) result(yes)
+    character(len=*), intent(in) :: path
+    logical :: yes
+    type(seams_frame) :: frame
+    integer(seams_int) :: stat
+    character(len=:), allocatable :: err
+    yes = .false.
+    frame = new_frame(stat, err)
+    if (stat /= SEAMS_OK) return
+    call frame%read(path, stat=stat, errmsg=err)
+    if (stat /= SEAMS_OK) return
+    yes = frame%count() > 0_seams_int
+  end function reader_accepts
+
+  subroutine write_probe_pdb(path, ok)
+    character(len=*), intent(in) :: path
+    logical, intent(out) :: ok
+    character(len=80) :: lines(4)
+    lines(1) = "HEADER    ONE OXYGEN"
+    lines(2) = "CRYST1    1.000    1.000    1.000  90.00  90.00  90.00 P 1           1"
+    lines(3) = "ATOM      1  OW  SOL A   1       0.000   0.000   0.000  1.00  0.00           O"
+    lines(4) = "END"
+    call write_probe_lines(path, lines, ok)
+  end subroutine write_probe_pdb
+
+  ! First frame of input/eon/tiny_multi_cuh2.con. The box rows use the
+  ! tab separators that file uses. Four atoms, which is also the count
+  ! the readers test expects from the fixture.
+  subroutine write_probe_con(path, ok)
+    character(len=*), intent(in) :: path
+    logical, intent(out) :: ok
+    character(len=1) :: tab
+    character(len=80) :: box_a, box_b
+    character(len=80) :: lines(17)
+    tab = achar(9)
+    box_a = "15.345600" // tab // "21.702000" // tab // "100.000000"
+    box_b = "90.000000" // tab // "90.000000" // tab // "90.000000"
+    lines(1) = "Random Number Seed"
+    lines(2) = '{"con_spec_version":2}'
+    lines(3) = box_a
+    lines(4) = box_b
+    lines(5) = "0 0"
+    lines(6) = "218 0 1"
+    lines(7) = "2"
+    lines(8) = "2 2"
+    lines(9) = "63.546000 1.007930"
+    lines(10) = "Cu"
+    lines(11) = "Coordinates of Component 1"
+    lines(12) = "   0.6394    0.9045    6.9753 1    0"
+    lines(13) = "   3.1969    0.9045    6.9753 1    1"
+    lines(14) = "H"
+    lines(15) = "Coordinates of Component 2"
+    lines(16) = "   8.6823    9.947   11.733 0  2"
+    lines(17) = "   7.9421    9.947   11.733 0  3"
+    call write_probe_lines(path, lines, ok)
+  end subroutine write_probe_con
+
+  subroutine write_probe_lines(path, lines, ok)
+    character(len=*), intent(in) :: path
+    character(len=*), intent(in) :: lines(:)
+    logical, intent(out) :: ok
+    character(kind=c_char), allocatable :: buf(:)
+    character(len=1) :: lf
+    integer :: i, j, pos, nline, total
+    integer(c_int) :: rc
+    ok = .false.
+    lf = new_line("a")
+    total = 0
+    do i = 1, size(lines)
+      total = total + len_trim(lines(i)) + 1
+    end do
+    if (total <= 0) return
+    allocate(buf(total))
+    pos = 1
+    do i = 1, size(lines)
+      nline = len_trim(lines(i))
+      do j = 1, nline
+        buf(pos) = lines(i)(j:j)
+        pos = pos + 1
+      end do
+      buf(pos) = lf
+      pos = pos + 1
+    end do
+    rc = dseams_probe_write(f_to_c(path), buf, int(total, c_size_t))
+    deallocate(buf)
+    ok = (rc == 0_c_int)
+  end subroutine write_probe_lines
 end submodule seams_methods

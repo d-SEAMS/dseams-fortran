@@ -6,7 +6,8 @@ Kinds are `seams_real` (`real64`) and `seams_int` (`int32`); coordinates have sh
 
 ## Repository docs
 
-- [README](https://github.com/d-SEAMS/dseams-fortran/blob/main/README.md): Install libseams, link flags for fpm, tests, the meson subproject, the one-file build, development against seams-core and the release order.
+- [README](https://github.com/d-SEAMS/dseams-fortran/blob/main/README.md): Install libseams, link flags for fpm, tests, the meson subproject, the one-file build and development against seams-core.
+- [Release steps](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/orgmode/contributing/developer/release.org): From a clean clone to the fortran-lang fpm registry.
 - [Manual](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/index.rst): Getting started, user guide, API reference and development. Sphinx builds it; FORD fills the API reference.
 - [API page](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/api/fortran.md): Kinds, ownership, errors, and the cubic-ice census. Symbol pages are generated.
 - [Tutorial](https://github.com/d-SEAMS/dseams-fortran/blob/main/docs/tutorials/fortran.md): Read ice Ih with the `seams` module.

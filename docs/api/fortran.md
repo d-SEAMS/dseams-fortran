@@ -14,6 +14,24 @@ The generated pages list every public symbol. They are
 The C API is the
 [d-SEAMS reference](https://docs.dseams.info/reference/api.html).
 
+## Readers
+
+`frame%read` takes a filesystem path. LAMMPS dump and XYZ need nothing
+beyond libseams. `has_readcon()` is true when that library reads EON
+CON files, and `has_chemfiles()` is true when it reads PDB, GRO and the
+other chemfiles formats. Both ask the loaded engine the first time
+either is called, behind an in-process once-guard (a C11
+`<stdatomic.h>` compare-and-swap, `src/dseams_once.c`; no lock file, no
+OS mutex, nothing a shared `/tmp` exposes to another user), and cache
+the answer; concurrent calls from different threads never race,
+because every caller but the one that runs the probe blocks until it
+finishes. `probe_directory(dir)` reports the directory those two calls
+write into, or an empty `dir` when no candidate can be written; it is a
+subroutine with an `intent(out)` argument, not a function, for the
+same reason given on `temp_directory` in `src/seams_methods.f90`. A
+program that branches on the queries runs against a libseams built
+without those libraries and against one built with them.
+
 ## Defaults
 
 A missing optional cutoff is 3.5 angstrom. CHILL and CHILL+ default to

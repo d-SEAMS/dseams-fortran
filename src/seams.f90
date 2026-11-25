@@ -189,6 +189,12 @@ module seams
   public :: status_text
   !> Number of frames in a trajectory path.
   public :: path_nframes
+  !> True when the loaded libseams reads chemfiles trajectories (PDB, GRO and the other chemfiles formats).
+  public :: has_chemfiles
+  !> True when the loaded libseams reads EON CON files through readcon-core.
+  public :: has_readcon
+  !> Directory where has_chemfiles and has_readcon write their probe file.
+  public :: probe_directory
 
   public :: assignment(=)
   interface assignment(=)
@@ -238,8 +244,42 @@ module seams
       integer(seams_int) :: nframes
     end function
 
+    !> Asks the loaded libseams, by reading a one-atom PDB it writes in the
+    !! first of `TMPDIR`, `TEMP`, `TMP` and the working directory that can
+    !! be written. A missing or unwritable directory is skipped. When none
+    !! can be written, the query is false and one diagnostic is printed.
+    !! The probe runs once per process, behind an in-process once-guard
+    !! (a C11 `<stdatomic.h>` compare-and-swap, no lock file and no OS
+    !! mutex), then its answer is cached; every caller but the one that
+    !! runs it blocks until it finishes, so concurrent calls from
+    !! different threads never race. A build of this package does not
+    !! decide the answer.
+    module function has_chemfiles() result(yes)
+      logical :: yes
+    end function
 
+    !> Asks the loaded libseams, by reading a four-atom EON CON it writes in
+    !! the first of `TMPDIR`, `TEMP`, `TMP` and the working directory that
+    !! can be written. A missing or unwritable directory is skipped. When
+    !! none can be written, the query is false and one diagnostic is printed.
+    !! The probe runs once per process, behind an in-process once-guard
+    !! (a C11 `<stdatomic.h>` compare-and-swap, no lock file and no OS
+    !! mutex), then its answer is cached; every caller but the one that
+    !! runs it blocks until it finishes, so concurrent calls from
+    !! different threads never race. A build of this package does not
+    !! decide the answer.
+    module function has_readcon() result(yes)
+      logical :: yes
+    end function
 
+    !> The directory `has_chemfiles` and `has_readcon` write into.
+    !! Empty when `TMPDIR`, `TEMP`, `TMP` and the working directory are
+    !! all missing or unwritable. A subroutine, not a function returning
+    !! an allocatable `character`, on purpose: see the comment on
+    !! `temp_directory` in `seams_methods.f90`.
+    module subroutine probe_directory(dir)
+      character(len=:), allocatable, intent(out) :: dir
+    end subroutine
 
     !> `xyz` has shape `(3, n)`. Lengths are angstrom. The origin defaults to zero.
     module subroutine frame_set_ortho(self, xyz, lx, ly, lz, ox, oy, oz, types, ids, stat, errmsg)

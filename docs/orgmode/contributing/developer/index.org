@@ -1,0 +1,55 @@
+#+TITLE: Developer Guide
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Developer Guide
+
+This section is the day-to-day workflow for the =dseams= fpm package.
+The reader manual stays in =docs/=. This directory is for people who
+cut a release or change the binding.
+
+** What this repository builds
+
+The Fortran modules on top of the d-SEAMS C API. The engine, =include/seams.h=
+and =libseams_lang= live in [[https://github.com/d-SEAMS/seams-core][seams-core]].
+This package links an installed =libseams=. It does not compile C or C++ and
+it does not vendor a trajectory reader.
+
+| Path | Contents |
+|------+----------|
+| =fpm.toml= | Package manifest. Its =version= line is the release version |
+| =src/= | =seams=, =seams_c=, =seams_kinds=, =seams_methods= |
+| =test/= | =check_dseams=, =capi=, =high=, =lang_tasks=, =readers= |
+| =changelog.d/= | Towncrier fragments for the next release |
+| =cog.toml= | Cocogitto: the version commit and the =v= tag |
+| =ci/version/= | cogapp copies of the version, listed in =files.txt= |
+| =.github/workflows/ci.yml= | Builds seams-core at =SEAMS_CORE_REF= and tests this package |
+
+** A local build
+
+Install seams-core at the tag named by =SEAMS_CORE_REF= in
+=.github/workflows/ci.yml=, then point both builds at it.
+
+#+begin_src bash
+export FPM_LDFLAGS="-L$PREFIX/lib -Wl,-rpath,$PREFIX/lib"
+export LD_LIBRARY_PATH="$PREFIX/lib"
+export OMP_NUM_THREADS=1
+fpm test
+meson setup build/meson -Dseams_libdir="$PREFIX/lib"
+meson test -C build/meson --print-errorlogs
+#+end_src
+
+=has_chemfiles= and =has_readcon= ask that =libseams= whether it was built
+with chemfiles and readcon-core. The =readers= test skips a format whose
+query is false. =DSEAMS_REQUIRE_READERS=1= turns a false query into a
+failed test, which is how the readers CI job keeps the skip from hiding
+a missing library.
+
+** Where the other pages are
+
+- [[file:testing.org][testing.org]] is the test and documentation build.
+- [[file:release.org][release.org]] is the path from a clean clone to the fpm registry.
+- [[file:faq.org][faq.org]] answers the questions that otherwise get re-decided in review.
+- When =seams.h= changes, update the matching =bind(C)= interfaces,
+  Fortran wrappers, and tests. Pin CI to the engine revision that
+  provides the updated header.

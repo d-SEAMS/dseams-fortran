@@ -1,0 +1,52 @@
+# Cocogitto release driver for dseams-fortran.
+# Prepare:  cog bump --version X.Y.Z   (or --auto / --minor / --major)
+# Hooks regenerate the copies in ci/version/files.txt from fpm.toml,
+# then towncrier builds CHANGELOG.md from changelog.d/.
+# Publishing the tag and the fpm registry entry stays a separate step.
+# See docs/orgmode/contributing/developer/release.org.
+
+from_latest_tag = true
+# Cog 7 reads this during `cog check` and skips commits with more than one
+# parent. The CLI is `cog check --ignore-merge-commits <base>..HEAD`.
+# There is no `--from` flag.
+ignore_merge_commits = true
+# Towncrier owns CHANGELOG.md. cog still creates the version commit and tag.
+disable_changelog = true
+disable_bump_commit = false
+generate_mono_repository_global_tag = true
+tag_prefix = "v"
+skip_ci = "[skip ci]"
+skip_untracked = false
+branch_whitelist = ["main"]
+
+# version in fpm.toml is the copy a person edits. cogapp rewrites every
+# other copy from it. towncrier folds changelog.d/. Pass cog bump the
+# same version string that fpm.toml already holds.
+pre_bump_hooks = [
+    "python3 -m cogapp -I ci/version -r @ci/version/files.txt",
+    "towncrier build --yes --version {{version}}",
+]
+
+post_bump_hooks = [
+    "git --no-pager show --stat HEAD",
+    "echo Prepared v{{version}}. Push the version commit and the tag v{{version}}, then publish packaging/fpm/registry.toml.",
+]
+
+[commit_types]
+feat     = { changelog_title = "Features" }
+fix      = { changelog_title = "Bug Fixes" }
+perf     = { changelog_title = "Performance" }
+refactor = { changelog_title = "Refactoring" }
+docs     = { changelog_title = "Documentation" }
+test     = { changelog_title = "Tests" }
+build    = { changelog_title = "Build System" }
+ci       = { changelog_title = "CI" }
+chore    = { changelog_title = "Miscellaneous" }
+style    = { changelog_title = "Style" }
+revert   = { changelog_title = "Reverts" }
+
+[changelog]
+path = "CHANGELOG.md"
+authors = [{ username = "HaoZeke", signature = "Rohit Goswami" }]
+
+[git_hooks]

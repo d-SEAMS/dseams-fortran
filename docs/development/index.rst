@@ -51,5 +51,7 @@ Run the package
 local build tree works the same way: ``libseams.so`` is in
 ``bbdir/src`` and ``libseams_lang.so`` is in ``bbdir/bindings``.
 
-Releases follow seams-core. The order is in the README. Fragments in
+Releases follow seams-core. The steps, from a clean clone to the
+fortran-lang fpm registry, are in
+``docs/orgmode/contributing/developer/release.org``. Fragments in
 ``changelog.d/`` are the unreleased notes.

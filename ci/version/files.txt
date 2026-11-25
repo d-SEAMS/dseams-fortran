@@ -1,0 +1,10 @@
+# Copies of the release version. version in fpm.toml is the line a
+# person edits. Regenerate:
+#   python3 -m cogapp -I ci/version -r @ci/version/files.txt
+# Check:
+#   python3 -m cogapp -I ci/version --check @ci/version/files.txt
+meson.build
+CITATION.cff
+docs/conf.py
+towncrier.toml
+ford.md

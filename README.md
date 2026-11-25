@@ -98,11 +98,12 @@ A parent project calls `subproject('dseams-fortran')` and then
 ## Single file
 
 `seams.f90` includes every module source in dependency order, for a
-build that compiles one file:
+build that compiles one Fortran file alongside the C once-guard:
 
 ```bash
+cc -c src/dseams_once.c
 gfortran -c seams.f90
-gfortran your_program.f90 seams.o -L"$SEAMS_LIB_DIR" -lseams
+gfortran your_program.f90 seams.o dseams_once.o -L"$SEAMS_LIB_DIR" -lseams
 ```
 
 ## Documentation
@@ -157,15 +158,8 @@ CI builds seams-core tag `v2.14.2` on `d-SEAMS/seams-core`, named by
 `SEAMS_CORE_REPOSITORY` and `SEAMS_CORE_REF` in
 `.github/workflows/ci.yml`.
 
-Releases go in this order:
-
-1. seams-core tags `vX.Y.Z` on d-SEAMS/seams-core.
-2. This repository moves `SEAMS_CORE_REF` to that tag, sets the version in
-   `fpm.toml` and `meson.build`, folds `changelog.d/` into
-   `CHANGELOG.md` with `towncrier build --version X.Y.Z`, and tags
-   `vX.Y.Z` once CI passes.
-3. The fpm registry entry from `packaging/fpm/registry.toml` goes to
-   fortran-lang/fpm-registry, naming that tag.
+Releases follow
+[docs/orgmode/contributing/developer/release.org](docs/orgmode/contributing/developer/release.org).
 
 ## License
 
