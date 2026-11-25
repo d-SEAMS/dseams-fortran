@@ -102,7 +102,7 @@ jobs:
       - name: Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ gfortran ninja-build pkg-config cmake libeigen3-dev libgomp1
+          sudo apt-get install -y g++ gfortran ninja-build pkg-config cmake libeigen3-dev libgomp1 libsqlite3-dev
           # 24.04 has no libflexiblas-dev; the seams-core script builds it.
           sudo sh _seams-core/scripts/install_flexiblas.sh
           pipx install meson
