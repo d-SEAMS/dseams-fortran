@@ -76,7 +76,7 @@ jobs:
         run: fpm run --compiler "${{ matrix.compiler }}"
       - name: Meson
         run: |
-          FC="${{ matrix.compiler }}" meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
+          CC=gcc FC="${{ matrix.compiler }}" meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
           meson test -C build/meson --print-errorlogs
       # fpm publish archives fpm_model.json before writing it (fpm 0.12,
       # 0.13), so dump the model first. --show-upload-data does not upload.
@@ -137,7 +137,7 @@ jobs:
           grep -q 'read gro 1' fpm-test.log
       - name: Meson
         run: |
-          FC=gfortran meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
+          CC=gcc FC=gfortran meson setup build/meson -Dseams_libdir="$SEAMS_PREFIX/lib"
           meson test -C build/meson --print-errorlogs
       - name: Assert the readers meson linked
         run: |
