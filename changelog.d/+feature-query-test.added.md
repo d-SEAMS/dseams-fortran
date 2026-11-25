@@ -1,1 +1,0 @@
-A standalone `feature_query` test exercises `has_chemfiles`, `has_readcon` and `probe_directory` on their own, outside `test_readers.f90`, so a future change that removes or breaks that Fortran-only API fails a build instead of only a reader test.

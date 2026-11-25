@@ -1,1 +1,0 @@
-`has_chemfiles` and `has_readcon` report whether the loaded libseams reads chemfiles trajectories and EON CON files. The readers test reads a CON, a PDB and a GRO when the matching query is true, and skips that read otherwise.

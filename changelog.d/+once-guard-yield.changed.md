@@ -1,1 +1,0 @@
-The once-guard behind `has_chemfiles`/`has_readcon` (`src/dseams_once.c`) now yields the CPU on each spin iteration instead of busy-looping, using C11 `thrd_yield` where `<threads.h>` is available and `sched_yield`/`SwitchToThread` otherwise. A thread that loses the race to run the probe no longer holds a core at full load for however long the one winner's probe takes.
